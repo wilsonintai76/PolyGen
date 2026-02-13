@@ -1,0 +1,5 @@
+{
+  "name": "PolyAssessment Gen",
+  "description": "A component-based generator for academic assessment papers following specific polytechnic formatting standards.",
+  "requestFramePermissions": []
+}
