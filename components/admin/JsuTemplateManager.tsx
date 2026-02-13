@@ -8,16 +8,29 @@ interface JsuTemplateManagerProps {
   onCancel: () => void;
 }
 
+/**
+ * Extension of MatrixRow for managing JSU slots in the UI.
+ * Includes flattened fields for specific question linkage.
+ */
+interface JsuSlot extends MatrixRow {
+  clo?: string;
+  topic?: string;
+  itemType?: string;
+  taxonomy?: string;
+  marks?: number;
+}
+
 const DOMAIN_OPTIONS = ['Cognitive', 'Psychomotor', 'Affective'] as const;
 
 export const JsuTemplateManager: React.FC<JsuTemplateManagerProps> = ({ course, onSave, onCancel }) => {
-  const [template, setTemplate] = useState<MatrixRow[]>(course.jsuTemplate || []);
+  const [template, setTemplate] = useState<JsuSlot[]>(course.jsuTemplate as JsuSlot[] || []);
   
   const cloList = Object.keys(course.clos);
   const mqfList = Object.keys(course.mqfs);
 
   const addSlot = () => {
-    const newSlot: MatrixRow = {
+    // Fix: initialize with fields that satisfy JsuSlot extension
+    const newSlot: JsuSlot = {
       mqfCluster: mqfList[0] || 'DK1',
       clo: cloList[0] || 'CLO 1',
       topic: '',
@@ -30,7 +43,7 @@ export const JsuTemplateManager: React.FC<JsuTemplateManagerProps> = ({ course, 
     setTemplate([...template, newSlot]);
   };
 
-  const updateSlot = (idx: number, field: keyof MatrixRow, value: any) => {
+  const updateSlot = (idx: number, field: keyof JsuSlot, value: any) => {
     const next = [...template];
     next[idx] = { ...next[idx], [field]: value };
     setTemplate(next);

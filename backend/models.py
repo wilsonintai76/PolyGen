@@ -24,9 +24,20 @@ class InstitutionalBranding(models.Model):
 class Course(models.Model):
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=255)
-    department = models.CharField(max_length=255)
+    
+    # Updated to match frontend ID references
+    dept_id = models.CharField(max_length=100, blank=True)
+    programme_id = models.CharField(max_length=100, blank=True)
+    
+    # Core Registry Data
     clos = models.JSONField(default=dict)
     mqfs = models.JSONField(default=dict)
+    mqf_mappings = models.JSONField(default=dict, blank=True)
+    
+    # List Data
+    topics = models.JSONField(default=list, blank=True)
+    assessment_policies = models.JSONField(default=list, blank=True)
+    jsu_template = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -58,6 +69,14 @@ class Question(models.Model):
     sub_questions = models.JSONField(default=list, blank=True)
     image_url = models.TextField(blank=True, null=True)
     figure_label = models.CharField(max_length=100, blank=True)
+    
+    # Frontend uses these fields for media type handling
+    media_type = models.CharField(max_length=20, blank=True, null=True) # figure, table, table-figure
+    answer_image_url = models.TextField(blank=True, null=True)
+    answer_figure_label = models.CharField(max_length=100, blank=True)
+    table_data = models.JSONField(default=dict, blank=True)
+    construct = models.CharField(max_length=50, blank=True)
+    domain = models.CharField(max_length=50, blank=True)
 
 class AssessmentPaper(models.Model):
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True)
@@ -68,6 +87,9 @@ class AssessmentPaper(models.Model):
     student_info = models.JSONField()
     footer = models.JSONField()
     instructions = models.JSONField(default=list)
+    clo_definitions = models.JSONField(default=dict, blank=True)
+    mqf_clusters = models.JSONField(default=dict, blank=True)
+    matrix = models.JSONField(default=list, blank=True)
     
     questions = models.ManyToManyField(Question)
 

@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { Course, Department, Programme, GlobalMqf } from '../types';
+import { Course, Department, Programme, GlobalMqf, AssessmentTaskPolicy, AssessmentDomain } from '../types';
 
 interface CourseEditorModalProps {
   course: Course;
@@ -12,7 +12,13 @@ interface CourseEditorModalProps {
   globalMqfs: GlobalMqf[];
 }
 
-type Tab = 'identity' | 'clos' | 'mqfs' | 'topics';
+type Tab = 'identity' | 'clos' | 'topics' | 'policies' | 'mqfs';
+
+const TAXONOMY_OPTIONS: Record<AssessmentDomain, string[]> = {
+  'Cognitive': ['C1', 'C2', 'C3', 'C4', 'C5', 'C6'],
+  'Psychomotor': ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'],
+  'Affective': ['A1', 'A2', 'A3', 'A4', 'A5']
+};
 
 export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({ 
   course, onSave, onCancel, onUpdate, departments, programmes, globalMqfs 
@@ -23,7 +29,33 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
     return programmes.filter(p => p.deptId === course.deptId);
   }, [programmes, course.deptId]);
 
-  const updateMapKey = (mapType: 'clos', oldKey: string, newKey: string) => {
+  // Determine the taxonomy caps across all policies defined in the syllabus
+  // Updated: Only include the specific levels defined as caps in policies
+  const cappedLevels = useMemo(() => {
+    const policies = course.assessmentPolicies || [];
+    const caps: Record<AssessmentDomain, string[]> = {
+      'Cognitive': [],
+      'Psychomotor': [],
+      'Affective': []
+    };
+
+    (['Cognitive', 'Psychomotor', 'Affective'] as AssessmentDomain[]).forEach(domain => {
+      const fullList = TAXONOMY_OPTIONS[domain];
+      
+      // Collect only the specific unique max levels defined in policies for this domain
+      const uniqueCaps = Array.from(new Set(
+        policies
+          .map(p => p.maxTaxonomy)
+          .filter(tax => fullList.includes(tax))
+      )).sort((a, b) => fullList.indexOf(a) - fullList.indexOf(b));
+
+      caps[domain] = uniqueCaps;
+    });
+
+    return caps;
+  }, [course.assessmentPolicies]);
+
+  const updateMapKey = (mapType: 'clos' | 'mqfs', oldKey: string, newKey: string) => {
     const currentMap = { ...course[mapType] };
     const value = currentMap[oldKey];
     const newMap: Record<string, string> = {};
@@ -36,24 +68,47 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
     onUpdate({ ...course, [mapType]: newMap });
   };
 
-  const updateMapValue = (mapType: 'clos', key: string, newValue: string) => {
+  const updateMapValue = (mapType: 'clos' | 'mqfs', key: string, newValue: string) => {
     onUpdate({
       ...course,
       [mapType]: { ...course[mapType], [key]: newValue }
     });
   };
 
+  const toggleMqfTaxonomyMapping = (mqfKey: string, taxLevel: string) => {
+    const currentMappings = { ...(course.mqfMappings || {}) };
+    const levels = currentMappings[mqfKey] || [];
+    const nextLevels = levels.includes(taxLevel) 
+      ? levels.filter(l => l !== taxLevel)
+      : [...levels, taxLevel];
+    
+    onUpdate({
+      ...course,
+      mqfMappings: { ...currentMappings, [mqfKey]: nextLevels }
+    });
+  };
+
   const removeItem = (mapType: 'clos' | 'mqfs', key: string) => {
     const newMap = { ...course[mapType] };
     delete newMap[key];
-    onUpdate({ ...course, [mapType]: newMap });
+    
+    const newMappings = { ...(course.mqfMappings || {}) };
+    delete newMappings[key];
+
+    onUpdate({ ...course, [mapType]: newMap, mqfMappings: newMappings });
   };
 
   const addClo = () => {
     const tempKey = `NEW_CLO_${Date.now()}`;
-    onUpdate({
-      ...course,
-      clos: { ...course.clos, [tempKey]: '' }
+    onUpdate({ ...course, clos: { ...course.clos, [tempKey]: '' } });
+  };
+
+  const addMqf = () => {
+    const tempKey = `NEW_MQF_${Date.now()}`;
+    onUpdate({ 
+        ...course, 
+        mqfs: { ...course.mqfs, [tempKey]: '' },
+        mqfMappings: { ...(course.mqfMappings || {}), [tempKey]: [] }
     });
   };
 
@@ -74,15 +129,31 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
     onUpdate({ ...course, topics: currentTopics });
   };
 
-  const addMqfFromGlobal = (mqfCode: string) => {
-    if (!mqfCode) return;
-    const selected = globalMqfs.find(m => m.code === mqfCode);
-    if (selected) {
-      onUpdate({
-        ...course,
-        mqfs: { ...course.mqfs, [selected.code]: selected.description }
-      });
-    }
+  const addPolicy = () => {
+    const current = course.assessmentPolicies || [];
+    const newPolicy: AssessmentTaskPolicy = {
+      id: Date.now().toString(),
+      name: '',
+      weightage: 0,
+      duration: '45 MINUTES',
+      maxTaxonomy: 'C3',
+      linkedTopics: [],
+      linkedClos: []
+    };
+    onUpdate({ ...course, assessmentPolicies: [...current, newPolicy] });
+  };
+
+  const updatePolicy = (id: string, updates: Partial<AssessmentTaskPolicy>) => {
+    const next = (course.assessmentPolicies || []).map(p => p.id === id ? { ...p, ...updates } : p);
+    onUpdate({ ...course, assessmentPolicies: next });
+  };
+
+  const togglePolicyItem = (id: string, field: 'linkedTopics' | 'linkedClos', value: string) => {
+    const p = (course.assessmentPolicies || []).find(x => x.id === id);
+    if (!p) return;
+    const current = [...p[field]];
+    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+    updatePolicy(id, { [field]: next });
   };
 
   const handleFinalSave = () => {
@@ -90,20 +161,8 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
       alert("Please ensure Department, Programme, Course Code, and Course Name are filled.");
       return;
     }
-
-    const finalClos: Record<string, string> = {};
-    Object.entries(course.clos).forEach(([k, v]) => {
-      const cleanK = k.startsWith('NEW_CLO_') ? 'CLO' : k;
-      finalClos[cleanK] = v as string;
-    });
-
-    // Clean topics (remove empty)
-    const finalTopics = (course.topics || []).filter(t => t.trim() !== '');
-
-    onSave({ ...course, clos: finalClos, topics: finalTopics });
+    onSave(course);
   };
-
-  const availableGlobalMqfs = globalMqfs.filter(m => !course.mqfs[m.code]);
 
   const tabClass = (t: Tab) => `flex-1 py-4 text-[11px] font-black uppercase tracking-widest transition-all border-b-4 ${
     activeTab === t ? 'text-blue-600 border-blue-600 bg-blue-50/30' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50'
@@ -120,12 +179,12 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
           <button onClick={onCancel} className="w-10 h-10 rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition flex items-center justify-center font-bold text-2xl">&times;</button>
         </div>
 
-        {/* Tab Switcher */}
         <div className="flex bg-white shrink-0 border-b">
            <button onClick={() => setActiveTab('identity')} className={tabClass('identity')}>1. Core Metadata</button>
            <button onClick={() => setActiveTab('clos')} className={tabClass('clos')}>2. Learning Outcomes</button>
-           <button onClick={() => setActiveTab('mqfs')} className={tabClass('mqfs')}>3. Standards/MQF</button>
-           <button onClick={() => setActiveTab('topics')} className={tabClass('topics')}>4. Course Topics</button>
+           <button onClick={() => setActiveTab('topics')} className={tabClass('topics')}>3. Course Topics</button>
+           <button onClick={() => setActiveTab('policies')} className={tabClass('policies')}>4. Assessment Policies</button>
+           <button onClick={() => setActiveTab('mqfs')} className={tabClass('mqfs')}>5. Standards Mapping</button>
         </div>
         
         <div className="p-10 overflow-y-auto custom-scrollbar bg-white flex-grow">
@@ -152,11 +211,10 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
                       onChange={e => onUpdate({...course, programmeId: e.target.value})}
                     >
                       <option value="">-- Select Programme --</option>
-                      {filteredProgrammes.map(p => <option key={p.id} value={p.id}>[{p.code}] {p.name}</option>)}
+                      {programmes.filter(p => p.deptId === course.deptId).map(p => <option key={p.id} value={p.id}>[{p.code}] {p.name}</option>)}
                     </select>
                   </div>
                </div>
-
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Course Code</label>
@@ -183,86 +241,14 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
                   {Object.entries(course.clos).map(([key, val]) => (
                     <div key={key} className="flex gap-4 group relative items-start bg-slate-50/50 p-5 rounded-3xl border border-slate-100 transition hover:bg-white hover:shadow-lg">
                       <div className="w-32 shrink-0">
-                        <input 
-                          className="w-full border-2 border-white rounded-xl p-3 text-xs font-black text-slate-800 outline-none focus:border-purple-400 bg-white transition text-center uppercase shadow-sm" 
-                          value={key.startsWith('NEW_CLO_') ? '' : key} 
-                          placeholder="CODE"
-                          onChange={e => updateMapKey('clos', key, e.target.value)} 
-                        />
+                        <input className="w-full border-2 border-white rounded-xl p-3 text-xs font-black text-slate-800 outline-none focus:border-purple-400 bg-white transition text-center uppercase shadow-sm" value={key.startsWith('NEW_CLO_') ? '' : key} placeholder="CODE" onChange={e => updateMapKey('clos', key, e.target.value)} />
                       </div>
                       <div className="flex-grow">
-                        <textarea 
-                          className="w-full border-2 border-white rounded-xl p-3 text-xs outline-none focus:border-purple-400 bg-white transition min-h-[80px] resize-none shadow-sm font-medium italic" 
-                          value={val} 
-                          onChange={e => updateMapValue('clos', key, e.target.value)} 
-                          placeholder="Provide the specific measurable outcome for students..." 
-                        />
+                        <textarea className="w-full border-2 border-white rounded-xl p-3 text-xs outline-none focus:border-purple-400 bg-white transition min-h-[80px] resize-none shadow-sm font-medium italic" value={val} onChange={e => updateMapValue('clos', key, e.target.value)} placeholder="Outcome description..." />
                       </div>
-                      <button 
-                        onClick={() => removeItem('clos', key)}
-                        className="w-10 h-10 bg-white text-red-400 rounded-full flex items-center justify-center shadow-md border border-red-50 hover:bg-red-500 hover:text-white transition-all transform hover:scale-110 active:scale-95"
-                      >&times;</button>
+                      <button onClick={() => removeItem('clos', key)} className="w-10 h-10 bg-white text-red-400 rounded-full flex items-center justify-center shadow-md border border-red-50 hover:bg-red-500 hover:text-white transition-all transform hover:scale-110 active:scale-95">&times;</button>
                     </div>
                   ))}
-                  {Object.keys(course.clos).length === 0 && (
-                    <div className="py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center">
-                       <span className="text-4xl mb-3">📝</span>
-                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No learning outcomes defined</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-           )}
-
-           {activeTab === 'mqfs' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                <div className="flex justify-between items-center mb-4">
-                   <h4 className="text-[11px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-                      Standards & Attributes (MQF/DA)
-                   </h4>
-                   <div className="flex items-center gap-3">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Link from Global Pool:</label>
-                      <select 
-                        className="bg-indigo-600 text-white border-none rounded-xl text-[10px] font-black uppercase px-4 py-2 outline-none hover:bg-indigo-700 transition shadow-lg"
-                        onChange={e => {
-                          addMqfFromGlobal(e.target.value);
-                          e.target.value = '';
-                        }}
-                        value=""
-                      >
-                        <option value="">+ SELECT STANDARD</option>
-                        {availableGlobalMqfs.map(m => (
-                          <option key={m.id} value={m.code}>{m.code} - {m.description.substring(0, 50)}...</option>
-                        ))}
-                      </select>
-                   </div>
-                </div>
-                <div className="space-y-4">
-                  {Object.entries(course.mqfs).map(([key, val]) => (
-                    <div key={key} className="flex gap-4 group relative items-start bg-slate-50/50 p-5 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-lg transition">
-                      <div className="w-32 shrink-0">
-                        <div className="w-full border-2 border-white rounded-xl p-3 text-xs font-black text-slate-800 bg-white transition text-center uppercase shadow-sm">
-                          {key}
-                        </div>
-                      </div>
-                      <div className="flex-grow">
-                        <div className="w-full border-2 border-white rounded-xl p-3 text-[11px] bg-white transition min-h-[80px] shadow-sm font-medium italic text-slate-500 leading-relaxed">
-                          {val}
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => removeItem('mqfs', key)}
-                        className="w-10 h-10 bg-white text-red-400 rounded-full flex items-center justify-center shadow-md border border-red-50 hover:bg-red-500 hover:text-white transition-all transform hover:scale-110 active:scale-95"
-                      >&times;</button>
-                    </div>
-                  ))}
-                  {Object.keys(course.mqfs).length === 0 && (
-                    <div className="py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center">
-                       <span className="text-4xl mb-3">🧬</span>
-                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No standards linked yet</p>
-                    </div>
-                  )}
                 </div>
               </div>
            )}
@@ -279,33 +265,154 @@ export const CourseEditorModal: React.FC<CourseEditorModalProps> = ({
                 <div className="space-y-4">
                   {(course.topics || []).map((topic, idx) => (
                     <div key={idx} className="flex gap-4 group relative items-center bg-slate-50/50 p-4 rounded-2xl border border-slate-100 transition hover:bg-white hover:shadow-md">
-                      <div className="w-16 shrink-0 flex items-center justify-center font-black text-slate-300 text-lg">
-                        {idx + 1}.
-                      </div>
+                      <div className="w-16 shrink-0 flex items-center justify-center font-black text-slate-300 text-lg">T{idx + 1}.</div>
                       <div className="flex-grow">
-                        <input 
-                          className="w-full border-2 border-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400 bg-white transition shadow-sm" 
-                          value={topic} 
-                          onChange={e => updateTopic(idx, e.target.value)} 
-                          placeholder={`Topic/Chapter ${idx + 1} title (e.g. 1.0 Basic Measurement)`}
-                        />
+                        <input className="w-full border-2 border-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400 bg-white transition shadow-sm" value={topic} onChange={e => updateTopic(idx, e.target.value)} placeholder={`Topic ${idx + 1} title`} />
                       </div>
-                      <button 
-                        onClick={() => removeTopic(idx)}
-                        className="w-10 h-10 bg-white text-red-400 rounded-xl flex items-center justify-center shadow-sm border border-red-50 hover:bg-red-500 hover:text-white transition-all active:scale-95"
-                      >&times;</button>
+                      <button onClick={() => removeTopic(idx)} className="w-10 h-10 bg-white text-red-400 rounded-xl flex items-center justify-center shadow-sm border border-red-50 hover:bg-red-500 hover:text-white transition-all active:scale-95">&times;</button>
                     </div>
                   ))}
-                  {(!course.topics || course.topics.length === 0) && (
-                    <div className="py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center">
-                       <span className="text-4xl mb-3">📂</span>
-                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No syllabus topics registered</p>
-                    </div>
-                  )}
                 </div>
-                {course.topics && course.topics.length > 0 && (
-                   <p className="text-[10px] text-slate-400 font-bold italic text-center uppercase tracking-tighter">These topics will appear as a dropdown selection when creating assessment papers.</p>
-                )}
+              </div>
+           )}
+
+           {activeTab === 'policies' && (
+              <div className="space-y-10 animate-in fade-in duration-300">
+                <div className="flex justify-between items-center">
+                   <div>
+                     <h4 className="text-[11px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                        Institutional Assessment Policies
+                     </h4>
+                     <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pre-define tasks, weightages, and taxonomy ceilings</p>
+                   </div>
+                   <button onClick={addPolicy} className="bg-indigo-600 text-white font-black text-[10px] uppercase px-4 py-2 rounded-xl hover:bg-indigo-700 transition shadow-lg">+ Add Task Policy</button>
+                </div>
+
+                <div className="space-y-8">
+                   {(course.assessmentPolicies || []).map(p => (
+                     <div key={p.id} className="bg-slate-50 p-8 rounded-[32px] border border-slate-200 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase">Task Name</label>
+                              <input className="w-full border-2 border-white bg-white p-3 rounded-xl font-black text-xs outline-none focus:border-indigo-400" value={p.name} onChange={e => updatePolicy(p.id, { name: e.target.value.toUpperCase() })} placeholder="e.g. QUIZ 1" />
+                           </div>
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase">Weight (%)</label>
+                              <input type="number" className="w-full border-2 border-white bg-white p-3 rounded-xl font-black text-xs outline-none focus:border-indigo-400 text-center" value={p.weightage} onChange={e => updatePolicy(p.id, { weightage: parseInt(e.target.value) || 0 })} />
+                           </div>
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase">Duration</label>
+                              <input className="w-full border-2 border-white bg-white p-3 rounded-xl font-black text-xs outline-none focus:border-indigo-400" value={p.duration} onChange={e => updatePolicy(p.id, { duration: e.target.value.toUpperCase() })} placeholder="e.g. 1 HOUR" />
+                           </div>
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-rose-500 uppercase">Max Taxonomy</label>
+                              <select className="w-full border-2 border-white bg-white p-3 rounded-xl font-black text-xs outline-none focus:border-rose-400" value={p.maxTaxonomy} onChange={e => updatePolicy(p.id, { maxTaxonomy: e.target.value })}>
+                                 {Object.values(TAXONOMY_OPTIONS).flat().map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                              </select>
+                           </div>
+                           <div className="flex items-end justify-end">
+                              <button onClick={() => onUpdate({ ...course, assessmentPolicies: (course.assessmentPolicies || []).filter(x => x.id !== p.id) })} className="text-[10px] font-black text-rose-500 uppercase hover:underline">Remove</button>
+                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                           <div className="space-y-3">
+                              <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Enforced Topics</label>
+                              <div className="flex flex-wrap gap-2">
+                                 {(course.topics || []).map((t, idx) => {
+                                   const code = `T${idx + 1}`;
+                                   const active = p.linkedTopics.includes(code);
+                                   return (
+                                     <button key={code} onClick={() => togglePolicyItem(p.id, 'linkedTopics', code)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${active ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-400 border border-white'}`}>{code}</button>
+                                   );
+                                 })}
+                              </div>
+                           </div>
+                           <div className="space-y-3">
+                              <label className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Enforced CLOs</label>
+                              <div className="flex flex-wrap gap-2">
+                                 {Object.keys(course.clos).map(clo => {
+                                   const active = p.linkedClos.includes(clo);
+                                   return (
+                                     <button key={clo} onClick={() => togglePolicyItem(p.id, 'linkedClos', clo)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${active ? 'bg-purple-600 text-white shadow-md' : 'bg-white text-slate-400 border border-white'}`}>{clo}</button>
+                                   );
+                                 })}
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
+           )}
+
+           {activeTab === 'mqfs' && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="flex justify-between items-center mb-4">
+                   <div>
+                     <h4 className="text-[11px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                        MQF / Dublin Standard Mapping
+                     </h4>
+                     <p className="text-[8px] text-slate-400 font-bold mt-1">Authorized achieved levels only (Caps from Syllabus)</p>
+                   </div>
+                   <button onClick={addMqf} className="bg-indigo-600 text-white font-black text-[10px] uppercase px-4 py-2 rounded-xl hover:bg-indigo-700 transition shadow-lg">+ Add Attribute</button>
+                </div>
+                <div className="space-y-8">
+                  {Object.entries(course.mqfs).map(([key, val]) => (
+                    <div key={key} className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+                      <div className="flex gap-4 items-start">
+                        <div className="w-32 shrink-0">
+                          <label className="text-[8px] font-black text-slate-400 uppercase ml-1 block mb-1">Attr Code</label>
+                          <input className="w-full border-2 border-white rounded-xl p-3 text-xs font-black text-indigo-700 outline-none focus:border-indigo-400 bg-white transition text-center uppercase shadow-sm" value={key.startsWith('NEW_MQF_') ? '' : key} placeholder="CODE" onChange={e => updateMapKey('mqfs', key, e.target.value)} />
+                        </div>
+                        <div className="flex-grow">
+                          <label className="text-[8px] font-black text-slate-400 uppercase ml-1 block mb-1">Attribute Description</label>
+                          <textarea className="w-full border-2 border-white rounded-xl p-3 text-xs outline-none focus:border-indigo-400 bg-white transition min-h-[60px] resize-none shadow-sm font-medium italic" value={val} onChange={e => updateMapValue('mqfs', key, e.target.value)} placeholder="Dublin descriptor description..." />
+                        </div>
+                        <button onClick={() => removeItem('mqfs', key)} className="mt-6 w-10 h-10 bg-white text-red-400 rounded-full flex items-center justify-center shadow-md border border-red-50 hover:bg-red-500 hover:text-white transition-all transform hover:scale-110 active:scale-95">&times;</button>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <label className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-3 block">Authorized Achieving Level (Institutional Standard)</label>
+                        
+                        <div className="space-y-4">
+                           {(['Cognitive', 'Psychomotor', 'Affective'] as AssessmentDomain[]).map(domain => {
+                              const options = cappedLevels[domain];
+                              if (options.length === 0) return null;
+                              return (
+                                <div key={domain} className="space-y-2">
+                                  <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{domain} Domain Caps</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {options.map(tax => {
+                                      const isMapped = (course.mqfMappings?.[key] || []).includes(tax);
+                                      return (
+                                        <button 
+                                          key={tax} 
+                                          onClick={() => toggleMqfTaxonomyMapping(key, tax)}
+                                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
+                                            isMapped ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-200' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-100'
+                                          }`}
+                                        >
+                                          {tax}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                           })}
+                           {Object.values(cappedLevels).every(v => v.length === 0) && (
+                             <p className="text-[8px] text-amber-500 italic bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-center gap-2">
+                               <span className="text-sm">⚠️</span> Configure Assessment Policies first to set taxonomy achievement levels.
+                             </p>
+                           )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
            )}
         </div>

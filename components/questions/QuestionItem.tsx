@@ -16,14 +16,11 @@ interface QuestionItemProps {
 }
 
 export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, editMode, onUpdate, onRemove }) => {
-  // Ensure we have a stable ID for internal use and to pass back to the parent if missing.
-  // We enforce a 'q-' prefix for all question IDs to clearly identify them.
   const safeId = useMemo(() => {
     const rawId = question.id || `${Math.random().toString(36).substring(2, 11)}-${Date.now()}`;
     return rawId.startsWith('q-') ? rawId : `q-${rawId}`;
   }, [question.id]);
 
-  // Synchronize the safe generated ID back to the parent state if the original was missing or lacked prefix.
   useEffect(() => {
     if (question.id !== safeId && onUpdate) {
       onUpdate({ ...question, id: safeId });
@@ -32,13 +29,11 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
 
   const displayNum = question.number;
 
-  // Auto-populate answer template for descriptive questions (short-answer or essay)
   useEffect(() => {
     if (editMode && !question.answer && (question.type === 'short-answer' || question.type === 'essay')) {
       const markLabel = question.marks === 1 ? 'mark' : 'marks';
       const template = `Define the marking criteria for this ${question.type} item here...\n(${question.marks} ${markLabel})`;
       
-      // Delay slightly to ensure state stability during multi-field updates
       const timer = setTimeout(() => {
         if (!question.answer) {
           handleChange('answer', template);
@@ -48,7 +43,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
     }
   }, [editMode, question.type, question.marks]);
 
-  // Specific robustness check for q-102 sub-questions (User Request)
   useEffect(() => {
     if (editMode && question.id === 'q-102' && question.subQuestions && onUpdate) {
       const sanitized = question.subQuestions.map((sq, idx) => ({
@@ -58,7 +52,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
         marks: sq.marks !== undefined ? sq.marks : 0
       }));
 
-      // Check if changes are needed to avoid infinite loop
       const isChanged = JSON.stringify(sanitized) !== JSON.stringify(question.subQuestions);
       if (isChanged) {
         onUpdate({ ...question, subQuestions: sanitized });
@@ -72,25 +65,19 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
 
   const handleSubQuestionsChange = (subs: QuestionPart[]) => {
     if (onUpdate) {
-      // Calculate total marks from sub-questions
       const totalMarks = subs.reduce((sum, s) => sum + (s.marks || 0), 0);
       onUpdate({ 
         ...question, 
         subQuestions: subs,
-        // Automatically update total marks if sub-questions have marks, otherwise keep existing
         marks: totalMarks > 0 ? totalMarks : question.marks
       });
     }
   };
 
-  // Force sync marks if sub-questions exist but marks don't match
-  // This handles cases where data might be stale or loaded incorrectly
   useEffect(() => {
     if (question.subQuestions && question.subQuestions.length > 0) {
       const total = question.subQuestions.reduce((acc, sq) => acc + (sq.marks || 0), 0);
       if (total !== question.marks && onUpdate) {
-        // We need to be careful not to create an infinite loop here.
-        // onUpdate should be stable.
         onUpdate({ ...question, marks: total });
       }
     }
@@ -103,7 +90,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
   };
 
   const handleCorrectMCQ = (label: string) => {
-    // Simple format for MCQ answers
     handleChange('answer', `Option ${label}`);
   };
 
@@ -119,7 +105,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
     return question.cloRef || '';
   };
 
-  // Determine if sub-question editor should be visible
   const showSubQuestions = question.type !== 'mcq' && (
     (question.subQuestions && question.subQuestions.length > 0) || 
     (editMode && ['calculation', 'short-answer', 'essay', 'diagram-label', 'structure'].includes(question.type))
@@ -128,15 +113,14 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
   const hasSubQuestions = !!(question.subQuestions && question.subQuestions.length > 0);
   const isStructure = question.type === 'structure';
 
-  // Helper to render media for a sub-question (Logic reused from main media renderer)
   const renderSubMedia = (sub: QuestionPart) => {
     if (!sub.mediaType) return null;
 
     return (
       <div className="mt-2 mb-4">
-         {/* Table Rendering */}
          {sub.mediaType === 'table' && sub.tableData && (
             <div className="flex flex-col items-center">
+              {/* LABEL ON TOP FOR TABLE */}
               {sub.tableData.label && (
                 <div className="text-center text-[10px] font-bold mb-2 uppercase text-gray-700">{sub.tableData.label}</div>
               )}
@@ -161,12 +145,12 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
             </div>
          )}
 
-         {/* Figure Rendering */}
          {sub.mediaType === 'figure' && sub.imageUrl && (
             <div className="flex flex-col items-center">
               <div className="relative max-w-sm border border-gray-300 p-1 bg-white shadow-sm rounded-sm mb-1">
                 <img src={sub.imageUrl} alt="Sub Figure" className="w-full object-contain max-h-48" />
               </div>
+              {/* LABEL ON BOTTOM FOR FIGURE */}
               {sub.figureLabel && (
                 <div className="text-center text-[10px] font-bold uppercase italic text-gray-500">{sub.figureLabel}</div>
               )}
@@ -243,7 +227,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
         <div className="flex-grow">
           {editMode ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              {/* Input Area */}
               <div className="relative group/editor">
                 <div className="flex justify-between items-end mb-1">
                   <div className="text-[8px] text-blue-500 font-black uppercase tracking-widest">Question Text</div>
@@ -260,7 +243,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
                 />
               </div>
 
-              {/* Real-time Preview Pane */}
               <div className="flex flex-col">
                 <div className="text-[8px] text-blue-600 font-black uppercase tracking-widest mb-1 ml-1 flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
@@ -281,9 +263,9 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
             <LatexRenderer text={question.text} className="mb-3 text-sm leading-relaxed" />
           )}
 
-          {/* Real Data Table (Label TOP) */}
           {question.mediaType === 'table' && question.tableData && (
             <div className="my-6 flex flex-col items-center">
+              {/* TABLE LABEL ON TOP */}
               <div className="text-center text-[10px] font-bold mb-2 uppercase text-gray-700">
                 {editMode ? (
                   <input 
@@ -317,9 +299,9 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
             </div>
           )}
 
-          {/* Table Image / Table Figure (Label TOP) */}
           {question.mediaType === 'table-figure' && question.imageUrl && (
             <div className="my-6 flex flex-col items-center">
+              {/* TABLE FIGURE LABEL ON TOP */}
               <div className="text-center text-[10px] font-bold mb-2 uppercase text-gray-700">
                 {editMode ? (
                   <input 
@@ -338,12 +320,12 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
             </div>
           )}
 
-          {/* Diagram / Figure (Label BOTTOM) */}
           {question.mediaType === 'figure' && question.imageUrl && (
             <div className="my-6 flex flex-col items-center">
               <div className="relative max-w-md border border-gray-300 p-1 bg-white shadow-sm rounded-sm">
                 <img src={question.imageUrl} alt="Figure" className="w-full object-contain" />
               </div>
+              {/* FIGURE LABEL ON BOTTOM */}
               <div className="text-center text-[10px] font-bold mt-2 uppercase italic text-gray-500">
                 {editMode ? (
                   <div className="flex flex-col items-center gap-1 mt-2">
@@ -372,7 +354,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
             />
           )}
 
-          {/* Render Sub-questions (Preview Mode) */}
           {(!editMode && showSubQuestions && question.subQuestions) && (
             <div className="ml-4 mb-2 space-y-4">
               {question.subQuestions.map((sub, idx) => (
@@ -382,7 +363,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
                        {sub.label && <div className="mr-2 font-bold text-sm">{sub.label}</div>}
                        <LatexRenderer text={sub.text} className="text-sm" />
                      </div>
-                     {/* Sub-question Media */}
                      {renderSubMedia(sub)}
                    </div>
                    {sub.marks !== undefined && (
@@ -393,7 +373,6 @@ export const QuestionItem: React.FC<QuestionItemProps> = ({ question, index, edi
             </div>
           )}
 
-          {/* Render Sub-question Editor (Edit Mode) */}
           {editMode && showSubQuestions && (
             <CalculationParts 
               subQuestions={question.subQuestions || []} 

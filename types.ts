@@ -40,25 +40,26 @@ export interface CISTCognitiveLevel {
 
 export type AssessmentDomain = 'Cognitive' | 'Psychomotor' | 'Affective';
 
+export interface AssessmentTaskPolicy {
+  id: string;
+  name: string;
+  weightage: number;
+  duration: string; 
+  maxTaxonomy: string; 
+  linkedTopics: string[]; 
+  linkedClos: string[]; 
+}
+
 export interface MatrixRow {
   task?: string;
   clos?: string[]; 
   topicCode?: string; 
   domain?: AssessmentDomain;
-  // Levels are stored as a map of level key (e.g., C1, P1, A1) to count and marks
   levels?: Record<string, CISTCognitiveLevel>; 
   totalMark?: number;
   construct?: string; 
   itemTypes?: string[]; 
-  
-  // Legacy fields for backward compatibility with existing components
   mqfCluster?: string;
-  clo?: string;
-  topic?: string;
-  itemType?: string;
-  taxonomy?: string;
-  marks?: number;
-  cognitiveLevels?: Record<string, CISTCognitiveLevel>; 
 }
 
 export interface HeaderData {
@@ -81,6 +82,8 @@ export interface QuestionPart {
   label?: string;
   text: string;
   answer?: string;
+  answerImageUrl?: string;
+  answerFigureLabel?: string;
   marks?: number;
   subParts?: QuestionPart[];
   mediaType?: 'figure' | 'table' | 'table-figure';
@@ -101,6 +104,8 @@ export interface Question {
   number: string;
   text: string;
   answer?: string;
+  answerImageUrl?: string;
+  answerFigureLabel?: string;
   marks: number;
   taxonomy?: string;
   construct?: string; 
@@ -144,6 +149,7 @@ export interface AssessmentPaper {
   cloDefinitions?: Record<string, string>;
   mqfClusters?: Record<string, string>;
   createdAt?: string;
+  status?: 'draft' | 'reviewed' | 'endorsed';
 }
 
 export interface Course {
@@ -154,7 +160,9 @@ export interface Course {
   programmeId: string;
   clos: Record<string, string>;
   mqfs: Record<string, string>;
+  mqfMappings?: Record<string, string[]>; // Maps MQF code to valid taxonomy levels (e.g. DK1 -> [C1, C2])
   topics?: string[];
+  assessmentPolicies?: AssessmentTaskPolicy[]; 
   jsuTemplate?: MatrixRow[];
 }
 

@@ -28,12 +28,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, acti
       label: 'ACADEMIC WORKSPACE',
       items: [
         { id: 'dashboard', label: 'Command Hub', icon: '🏛️' },
-        { id: 'setup', label: 'New Assessment', icon: '📝' },
       ]
     },
     {
       label: 'REPOSITORIES',
       items: [
+        { id: 'setup', label: 'New Assessment', icon: '📝' },
         { id: 'manage-bank', label: 'Question Bank', icon: '🗄️' },
         { id: 'library', label: 'Paper Archive', icon: '📁' },
       ]

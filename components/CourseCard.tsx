@@ -11,19 +11,31 @@ interface CourseCardProps {
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({ course, user, onEdit, onDelete, onManageJsu }) => {
-  const cloCount = Object.keys(course.clos).length;
-  const mqfCount = Object.keys(course.mqfs).length;
+  const cloCount = Object.keys(course.clos || {}).length;
+  const mqfCount = Object.keys(course.mqfs || {}).length;
   const isJsuDefined = !!(course.jsuTemplate && course.jsuTemplate.length > 0);
   
-  // Requirement: Only Coordinator (Reviewer role) can manage JSU/Course details
+  // Registration Completeness Checks (Items 1-5 in Registry Editor)
+  const hasMetadata = !!(course.code && course.name && course.deptId && course.programmeId);
+  const hasClos = cloCount > 0;
+  const hasTopics = !!(course.topics && course.topics.length > 0);
+  const hasPolicies = !!(course.assessmentPolicies && course.assessmentPolicies.length > 0);
+  const hasMqf = mqfCount > 0;
+
+  // STRICT RULE: All 5 items must be present
+  const isRegistrationComplete = hasMetadata && hasClos && hasTopics && hasPolicies && hasMqf;
+  
+  // Requirement: Only Coordinator (Reviewer role) or Admin can manage JSU/Course details
   const canManage = user?.role === 'reviewer' || user?.role === 'admin';
 
   return (
     <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 hover:shadow-md transition group relative flex flex-col h-full">
       {/* Header with Code and Actions */}
       <div className="flex justify-between items-start mb-6">
-        <div className="bg-[#ebf3ff] text-[#3b82f6] px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-sm">
-          {course.code || 'CODE'}
+        <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-sm ${
+            isRegistrationComplete ? 'bg-[#ebf3ff] text-[#3b82f6]' : 'bg-slate-100 text-slate-400'
+        }`}>
+          {course.code || 'DRAFT'}
         </div>
         <div className="flex gap-3 pt-1">
           {onEdit && (
@@ -56,9 +68,23 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, user, onEdit, on
         {course.name || 'Untitled Course'}
       </h3>
 
-      {/* JSU Status Badge */}
-      <div className="mb-8">
-        {isJsuDefined ? (
+      {/* Status Badge */}
+      <div className="mb-8 min-h-[40px]">
+        {!isRegistrationComplete ? (
+          <div className="flex flex-col gap-1">
+             <span className="text-[9px] font-black bg-rose-50 text-rose-500 px-3 py-1 rounded-full uppercase tracking-widest border border-rose-100 w-fit">
+               REGISTRATION PENDING
+             </span>
+             <span className="text-[7px] font-black text-rose-300 uppercase tracking-widest pl-1 leading-tight">
+               MISSING: 
+               {!hasMetadata ? ' INFO ' : ''}
+               {!hasClos ? ' CLOS ' : ''}
+               {!hasTopics ? ' TOPICS ' : ''}
+               {!hasPolicies ? ' POLICIES ' : ''}
+               {!hasMqf ? ' STDS' : ''}
+             </span>
+          </div>
+        ) : isJsuDefined ? (
           <span className="text-[9px] font-black bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full uppercase tracking-widest">
             JSU Blueprint Defined
           </span>
@@ -73,9 +99,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, user, onEdit, on
       {canManage && onManageJsu && (
         <button 
           onClick={() => onManageJsu(course)}
-          className="mb-6 w-full py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition shadow-lg active:scale-95"
+          disabled={!isRegistrationComplete}
+          className={`mb-6 w-full py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition shadow-lg active:scale-95 flex items-center justify-center gap-2 ${
+             isRegistrationComplete 
+             ? 'bg-slate-900 text-white hover:bg-slate-800' 
+             : 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none border border-slate-200'
+          }`}
         >
-          Manage CIST (JSU)
+          {!isRegistrationComplete && <span className="text-xs grayscale opacity-50">🔒</span>}
+          MANAGE CIST
         </button>
       )}
 

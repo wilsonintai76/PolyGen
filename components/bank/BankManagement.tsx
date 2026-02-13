@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { Question, Course } from '../../types';
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Question, Course, QuestionPart, MatrixRow, AssessmentDomain } from '../../types';
 import { LatexRenderer } from '../common/LatexRenderer';
 import { MarkInputControl } from '../common/MarkInputControl';
 
@@ -15,710 +16,459 @@ interface BankManagementProps {
   availableCourses: Course[];
 }
 
-const MediaLabelInput: React.FC<{
-  value: string;
-  onChange: (val: string) => void;
-  type: 'figure' | 'table-figure' | 'table';
-}> = ({ value, onChange, type }) => {
-  const isFigure = type === 'figure';
-  const labelText = isFigure ? 'Figure Label (e.g. Figure 1)' : 'Table Label (e.g. Table 1)';
-  const positionText = isFigure ? 'Rendered at bottom of asset' : 'Rendered at top of asset';
-
-  return (
-    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mb-4 animate-in fade-in slide-in-from-top-4">
-      <div className="flex justify-between items-end mb-2">
-        <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-          {labelText}
-        </label>
-        <span className="text-[8px] font-bold text-slate-400 uppercase italic tracking-tighter">{positionText}</span>
-      </div>
-      <div className="relative group">
-        <input 
-          className="w-full border-2 border-white bg-white p-4 rounded-2xl outline-none focus:border-blue-400 font-black text-slate-700 shadow-sm transition-all group-hover:shadow-md" 
-          value={value} 
-          onChange={e => onChange(e.target.value)} 
-          placeholder={isFigure ? "Figure 1: Title of diagram" : "Table 1: Data overview"} 
-        />
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20 pointer-events-none text-xl">
-          {isFigure ? '📐' : '📊'}
-        </div>
-      </div>
-    </div>
-  );
+const JSU_TYPE_MAP: Record<string, Question['type']> = {
+  'O': 'mcq', 'S': 'structure', 'P': 'measurement', 'R': 'essay', 'A': 'short-answer'
 };
 
-const RealTableEditor: React.FC<{
-  tableData?: Question['tableData'];
-  onChange: (data: Question['tableData']) => void;
-}> = ({ tableData, onChange }) => {
-  if (!tableData) return null;
-
-  const updateHeader = (ci: number, val: string) => {
-    const headers = [...tableData.headers];
-    headers[ci] = val;
-    onChange({ ...tableData, headers });
-  };
-
-  const updateCell = (ri: number, ci: number, val: string) => {
-    const rows = [...tableData.rows];
-    rows[ri] = [...rows[ri]];
-    rows[ri][ci] = val;
-    onChange({ ...tableData, rows });
-  };
-
-  const addRow = () => {
-    const newRow = tableData.headers.map(() => '');
-    onChange({ ...tableData, rows: [...tableData.rows, newRow] });
-  };
-
-  const addCol = () => {
-    const headers = [...tableData.headers, `Col ${tableData.headers.length + 1}`];
-    const rows = tableData.rows.map(row => [...row, '']);
-    onChange({ ...tableData, headers, rows });
-  };
-
-  const removeRow = (ri: number) => {
-    const rows = [...tableData.rows];
-    rows.splice(ri, 1);
-    onChange({ ...tableData, rows });
-  };
-
-  const removeCol = (ci: number) => {
-    const headers = [...tableData.headers];
-    headers.splice(ci, 1);
-    const rows = tableData.rows.map(row => {
-      const newRow = [...row];
-      newRow.splice(ci, 1);
-      return newRow;
-    });
-    onChange({ ...tableData, headers, rows });
-  };
-
-  return (
-    <div className="space-y-4">
-      <MediaLabelInput 
-        type="table"
-        value={tableData.label || ''}
-        onChange={(val) => onChange({ ...tableData, label: val })}
-      />
-      
-      <div className="overflow-x-auto border-2 border-slate-100 rounded-2xl p-4 bg-white shadow-inner">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr>
-              {tableData.headers.map((h, i) => (
-                <th key={i} className="p-1 min-w-[100px]">
-                  <div className="flex flex-col gap-1">
-                    <button 
-                      type="button" 
-                      onClick={() => removeCol(i)}
-                      className="text-[8px] text-red-400 hover:text-red-600 font-black uppercase tracking-tighter self-end px-1"
-                      title="Delete Column"
-                    >
-                      Remove
-                    </button>
-                    <input 
-                      className="w-full border-2 border-blue-50 p-2 rounded-lg bg-blue-50/50 text-center font-black focus:border-blue-300 outline-none" 
-                      value={h} 
-                      onChange={e => updateHeader(i, e.target.value)} 
-                    />
-                  </div>
-                </th>
-              ))}
-              <th className="w-12">
-                <button 
-                  type="button" 
-                  onClick={addCol} 
-                  className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-black hover:bg-blue-100 transition shadow-sm"
-                  title="Add Column"
-                >
-                  +
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {tableData.rows.map((row, ri) => (
-              <tr key={ri} className="group/row">
-                {row.map((cell, ci) => (
-                  <td key={ci} className="p-1">
-                    <input 
-                      className="w-full border border-slate-100 p-2 rounded-lg text-center focus:border-blue-200 outline-none transition" 
-                      value={cell} 
-                      onChange={e => updateCell(ri, ci, e.target.value)} 
-                    />
-                  </td>
-                ))}
-                <td className="text-center p-1">
-                  <button 
-                    type="button" 
-                    onClick={() => removeRow(ri)}
-                    className="w-8 h-8 rounded-lg bg-red-50 text-red-500 font-black opacity-0 group-hover/row:opacity-100 transition shadow-sm hover:bg-red-100"
-                    title="Delete Row"
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button 
-          type="button" 
-          onClick={addRow} 
-          className="w-full mt-4 py-3 border-2 border-dashed border-slate-200 text-slate-400 rounded-xl hover:bg-slate-50 transition text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
-        >
-          <span className="text-lg">+</span> Add New Row
-        </button>
-      </div>
-    </div>
-  );
+const TYPE_LABEL_MAP: Record<Question['type'], string> = {
+  'mcq': 'MCQ (Objective)', 'structure': 'Structure (Subjective)', 'measurement': 'Measurement (Subjective)',
+  'essay': 'Essay (Subjective)', 'short-answer': 'Short Answer (Subjective)', 'calculation': 'Calculation (Subjective)',
+  'diagram-label': 'Diagram Labeling (Subjective)'
 };
 
-const ImageAssetPreview: React.FC<{ url: string; onClear: () => void }> = ({ url, onClear }) => (
-  <div className="flex items-center gap-4 p-4 bg-blue-50/50 border border-blue-100 rounded-2xl animate-in fade-in slide-in-from-top-2">
-    <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white shrink-0 group relative">
-      <img src={url} className="w-full h-full object-cover" alt="Preview" />
-      <div className="absolute inset-0 bg-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-    </div>
-    <div className="flex-grow min-w-0">
-      <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Image Asset Ready</p>
-      <p className="text-[9px] text-slate-400 font-bold uppercase truncate">Stored in Local Session State</p>
-    </div>
-    <button 
-      type="button"
-      onClick={onClear}
-      className="bg-white text-red-500 font-black text-[9px] px-4 py-2 rounded-xl border border-red-100 hover:bg-red-50 transition shadow-sm uppercase tracking-widest active:scale-95"
-    >
-      Clear Image
-    </button>
+const DOMAIN_LEVELS: Record<AssessmentDomain, string[]> = {
+  'Cognitive': ['C1', 'C2', 'C3', 'C4', 'C5', 'C6'],
+  'Psychomotor': ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'],
+  'Affective': ['A1', 'A2', 'A3', 'A4', 'A5']
+};
+
+const FormLabel: React.FC<{ children: React.ReactNode; className?: string; isSync?: boolean }> = ({ children, className = "", isSync }) => (
+  <label className={`block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1 flex items-center justify-between ${className}`}>
+    <span>{children}</span>
+    {isSync && <span className="bg-emerald-50 text-emerald-500 px-1.5 py-0.5 rounded-[4px] border border-emerald-100 text-[7px] animate-pulse">CIST BLUEPRINT SYNC</span>}
+  </label>
+);
+
+const SelectField: React.FC<{
+  value: string; onChange: (val: string) => void; options: { value: string; label: string }[];
+  placeholder: string; disabled?: boolean; className?: string;
+}> = ({ value, onChange, options, placeholder, disabled, className = "" }) => (
+  <div className={`relative group ${className}`}>
+    <select disabled={disabled} value={value} onChange={e => onChange(e.target.value)}
+      className="w-full appearance-none border border-slate-100 bg-white p-4 rounded-2xl outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition shadow-sm font-bold text-slate-700 text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+      <option value="">{placeholder}</option>
+      {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+    </select>
+    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 text-[10px]">▼</div>
   </div>
 );
 
-const BankSidebarItem: React.FC<{
-  question: Question;
-  isSelected: boolean;
-  onToggle: () => void;
-  courseCode: string;
-}> = ({ question, isSelected, onToggle, courseCode }) => (
-  <div 
-    onClick={onToggle}
-    className={`text-xs p-5 border-2 rounded-2xl bg-white hover:border-blue-200 transition-all shadow-sm cursor-pointer relative group ${
-      isSelected ? 'border-blue-600 bg-blue-50/30' : 'border-slate-50'
-    }`}
-  >
-    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'}`}>
-        {isSelected && '✓'}
-      </div>
-    </div>
-    <div className="flex flex-wrap gap-1.5 mb-2">
-      <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-md font-black text-[8px] uppercase tracking-tighter">
-        {courseCode}
-      </span>
-      <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md font-black text-[8px] uppercase">
-        {question.type}
-      </span>
-      <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-black text-[8px] uppercase">
-        {question.marks}M
-      </span>
-      <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-md font-black text-[8px] uppercase">
-        {question.taxonomy} / {question.construct}
-      </span>
-    </div>
-    <div className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-tight truncate">Topic: {question.topic}</div>
-    <div className="text-slate-700 font-medium italic mb-2 line-clamp-2 leading-relaxed">
-      <LatexRenderer text={question.text} />
-    </div>
-  </div>
-);
-
-export const BankManagement: React.FC<BankManagementProps> = ({ 
-  onBack, onSave, onBatchAdd, currentBank, availableClos, availableMqf, availableCourses
-}) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'subquestions' | 'options' | 'media'>('details');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+export const BankManagement: React.FC<BankManagementProps> = ({ onBack, onSave, currentBank, availableCourses }) => {
+  const [activeTab, setActiveTab] = useState<'identity' | 'question' | 'marking'>('identity');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const answerSketchRef = useRef<HTMLInputElement>(null);
   
   const [newQ, setNewQ] = useState<Partial<Question>>({
-    courseId: '',
-    type: 'mcq',
-    marks: 1,
-    topic: '',
-    cloKeys: [],
-    mqfKeys: [],
-    text: '',
-    answer: '',
-    taxonomy: 'C1',
-    construct: 'SS',
-    subQuestions: [],
-    options: ['', '', '', ''],
-    tableData: { headers: ['Header 1', 'Header 2'], rows: [['Value 1', 'Value 2']], label: 'Table 1' },
-    figureLabel: 'Figure 1',
-    mediaType: 'figure'
+    courseId: '', sectionTitle: '', topic: '', type: 'structure', marks: 1,
+    cloKeys: [], mqfKeys: [], text: '', answer: '', taxonomy: '',
+    construct: '', domain: 'Cognitive', subQuestions: [], options: ['', '', '', ''],
+    mediaType: undefined, figureLabel: 'Figure 1', answerImageUrl: '', answerFigureLabel: 'Solution Sketch'
   });
 
-  const toggleSelection = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIds(next);
+  const selectedCourse = useMemo(() => availableCourses.find(c => c.id === newQ.courseId), [availableCourses, newQ.courseId]);
+  
+  const assessmentOptions = useMemo(() => {
+    if (!selectedCourse?.jsuTemplate) return [];
+    const tasks = Array.from(new Set(selectedCourse.jsuTemplate.map(s => s.task).filter(Boolean)));
+    return tasks.map(t => ({ value: t!, label: t! }));
+  }, [selectedCourse]);
+
+  const selectedTaskPolicy = useMemo(() => {
+    if (!selectedCourse || !newQ.sectionTitle) return null;
+    return (selectedCourse.assessmentPolicies || []).find(p => p.name === newQ.sectionTitle);
+  }, [selectedCourse, newQ.sectionTitle]);
+
+  const topicOptions = useMemo(() => {
+    if (!selectedCourse?.jsuTemplate || !newQ.sectionTitle) return [];
+    const topics = Array.from(new Set(
+      selectedCourse.jsuTemplate
+        .filter(s => s.task === newQ.sectionTitle)
+        .map(s => s.topicCode)
+        .filter(Boolean)
+    ));
+    
+    return topics.map(code => {
+        const match = code!.match(/T(\d+)/i);
+        const index = match ? parseInt(match[1], 10) - 1 : -1;
+        const fullTitle = (index >= 0 && selectedCourse.topics?.[index]) ? selectedCourse.topics[index] : code!;
+        return { 
+            value: code!, 
+            label: `${code} : ${fullTitle}` 
+        };
+    });
+  }, [selectedCourse, newQ.sectionTitle]);
+
+  const matchedSlot = useMemo(() => {
+    if (!selectedCourse?.jsuTemplate || !newQ.sectionTitle || !newQ.topic) return null;
+    return selectedCourse.jsuTemplate.find(s => s.task === newQ.sectionTitle && s.topicCode === newQ.topic);
+  }, [selectedCourse, newQ.sectionTitle, newQ.topic]);
+
+  const taxonomyOptions = useMemo(() => {
+    const fullList = DOMAIN_LEVELS[newQ.domain as AssessmentDomain || 'Cognitive'];
+    if (!selectedTaskPolicy) return fullList.map(l => ({ value: l, label: l }));
+    
+    const maxTax = selectedTaskPolicy.maxTaxonomy || '';
+    const maxIdx = fullList.indexOf(maxTax);
+    
+    // If taxonomy is not set in policy, show all. Otherwise slice up to ceiling.
+    const constrainedList = maxIdx === -1 ? fullList : fullList.slice(0, maxIdx + 1);
+    return constrainedList.map(l => ({ value: l, label: l === maxTax ? `${l} (CEILING)` : l }));
+  }, [newQ.domain, selectedTaskPolicy]);
+
+  // Constrain MQF Attributes based on Taxonomy Mapping in Registry
+  const constrainedMqfs = useMemo(() => {
+    if (!selectedCourse || !newQ.taxonomy) return [];
+    const mappings = selectedCourse.mqfMappings || {};
+    return Object.keys(selectedCourse.mqfs).filter(mqfCode => {
+        const validLevels = mappings[mqfCode] || [];
+        return validLevels.includes(newQ.taxonomy!);
+    });
+  }, [selectedCourse, newQ.taxonomy]);
+
+  const assessmentSpecificClos = useMemo(() => {
+    if (!selectedCourse?.jsuTemplate || !newQ.sectionTitle) return [];
+    const clos = new Set<string>();
+    selectedCourse.jsuTemplate
+      .filter(s => s.task === newQ.sectionTitle)
+      .forEach(s => s.clos?.forEach(c => clos.add(c)));
+    return Array.from(clos).sort();
+  }, [selectedCourse, newQ.sectionTitle]);
+
+  const availableTypes = useMemo(() => {
+    if (matchedSlot && matchedSlot.itemTypes && matchedSlot.itemTypes.length > 0) {
+      return matchedSlot.itemTypes
+        .map(c => {
+          const typeVal = JSU_TYPE_MAP[c.toUpperCase()];
+          return typeVal ? { value: typeVal, label: TYPE_LABEL_MAP[typeVal] } : null;
+        })
+        .filter((opt): opt is { value: Question['type']; label: string } => opt !== null);
+    }
+    return Object.entries(TYPE_LABEL_MAP).map(([val, label]) => ({ value: val as Question['type'], label }));
+  }, [matchedSlot]);
+
+  useEffect(() => {
+    if (matchedSlot) {
+      const updates: Partial<Question> = {};
+      if (matchedSlot.clos?.length) updates.cloKeys = [...matchedSlot.clos];
+      if (matchedSlot.construct) updates.construct = matchedSlot.construct.includes('GS') ? 'GS' : 'SS';
+      
+      const itemTypes = matchedSlot.itemTypes?.map(c => JSU_TYPE_MAP[c.toUpperCase()]).filter(Boolean) as Question['type'][];
+      
+      if (itemTypes?.length === 1) {
+        updates.type = itemTypes[0];
+      } else if (itemTypes?.length > 1) {
+        if (!newQ.type || !itemTypes.includes(newQ.type)) {
+          updates.type = itemTypes[0];
+        }
+      }
+
+      const taxLevels = Object.keys(matchedSlot.levels || {}).filter(l => (matchedSlot.levels?.[l]?.marks || 0) > 0);
+      if (taxLevels.length === 1) {
+        updates.taxonomy = taxLevels[0];
+        updates.marks = matchedSlot.levels?.[taxLevels[0]]?.marks || 0;
+      }
+      setNewQ(prev => ({ ...prev, ...updates }));
+    }
+  }, [matchedSlot]);
+
+  const handleTaxonomyChange = (l: string) => {
+    const marks = matchedSlot?.levels?.[l]?.marks || 0;
+    // Reset MQF keys if the new taxonomy doesn't support currently selected ones
+    setNewQ(prev => ({ ...prev, taxonomy: l, marks, mqfKeys: [] }));
   };
 
-  const handleBatchAddClick = () => {
-    const questionsToAdd = currentBank.filter(q => selectedIds.has(q.id));
-    onBatchAdd(questionsToAdd);
-    setSelectedIds(new Set());
-    alert(`${questionsToAdd.length} questions added to the current assessment paper.`);
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'imageUrl' | 'answerImageUrl') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setNewQ({ ...newQ, [field]: reader.result as string });
+      reader.readAsDataURL(file);
+    }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSubPartImage = (idx: number, e: React.ChangeEvent<HTMLInputElement>, field: 'answerImageUrl') => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setNewQ({ ...newQ, imageUrl: reader.result as string });
+         const subs = [...(newQ.subQuestions || [])];
+         subs[idx] = { ...subs[idx], [field]: reader.result as string };
+         setNewQ({ ...newQ, subQuestions: subs });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const toggleCLO = (clo: string) => {
-    const current = newQ.cloKeys || [];
-    if (current.includes(clo)) {
-      setNewQ({ ...newQ, cloKeys: current.filter(c => c !== clo) });
-    } else {
-      setNewQ({ ...newQ, cloKeys: [...current, clo] });
-    }
-  };
-
-  const toggleMQF = (mqf: string) => {
-    const current = newQ.mqfKeys || [];
-    if (current.includes(mqf)) {
-      setNewQ({ ...newQ, mqfKeys: current.filter(m => m !== mqf) });
-    } else {
-      setNewQ({ ...newQ, mqfKeys: [...current, mqf] });
-    }
-  };
-
-  const handleSetCorrectMCQ = (label: string) => {
-     setNewQ({ ...newQ, answer: `Option ${label}` });
+  const toggleLink = (field: 'mqfKeys' | 'cloKeys', key: string) => {
+    const current = (newQ[field] || []) as string[];
+    const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key];
+    setNewQ({ ...newQ, [field]: next });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQ.text || !newQ.topic || !newQ.courseId) {
-      alert("Please fill in the Course, Topic, and Question text.");
-      return;
-    }
-    
-    const cleanedQ = { ...newQ };
-    if (cleanedQ.mediaType === 'figure' || cleanedQ.mediaType === 'table-figure') {
-      delete cleanedQ.tableData;
-    } else if (cleanedQ.mediaType === 'table') {
-      delete cleanedQ.imageUrl;
-      delete cleanedQ.figureLabel;
-    }
-
-    const q: Question = {
-      ...cleanedQ as Question,
-      id: 'custom-' + Date.now(),
-      number: ''
-    };
-    onSave(q);
-    alert('Question added to bank!');
-    setNewQ({
-      ...newQ,
-      text: '',
-      answer: '',
-      subQuestions: [],
-      imageUrl: undefined,
-      figureLabel: 'Figure 1'
-    });
-    setActiveTab('details');
+    if (!newQ.text || !newQ.courseId) return alert("Registry Error: Missing stem or course.");
+    onSave({ ...newQ as Question, id: 'custom-' + Date.now(), number: '' });
+    alert('Academic item successfully committed.');
+    setNewQ({ courseId: '', text: '', answer: '', subQuestions: [], options: ['', '', '', ''], type: 'structure', mediaType: undefined, answerImageUrl: '' });
+    setActiveTab('identity');
   };
 
-  const getCourseCode = (id?: string) => availableCourses.find(c => c.id === id)?.code || "N/A";
-
-  const isStructure = newQ.type === 'structure';
+  const getFullTopicDisplay = (q: Partial<Question>) => {
+    if (!q.topic || !q.courseId) return q.topic || 'General';
+    const course = availableCourses.find(c => c.id === q.courseId);
+    if (!course) return q.topic;
+    
+    const match = q.topic.match(/T(\d+)/i);
+    const index = match ? parseInt(match[1], 10) - 1 : -1;
+    const fullTitle = (index >= 0 && course.topics?.[index]) ? course.topics[index] : q.topic;
+    return `${q.topic} : ${fullTitle}`;
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-8 font-sans">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-10">
           <div>
-            <h2 className="text-4xl font-black text-slate-800 tracking-tight">Bank Management</h2>
-            <p className="text-slate-500 font-bold uppercase text-[11px] tracking-widest mt-1">Repository for shared institutional assessment items</p>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase">Registry Terminal</h2>
+            <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1 border-l-4 border-blue-600 pl-4 italic">Topic Shorthand (T1, T2) Sync Active</p>
           </div>
-          <button onClick={onBack} className="bg-white border-2 border-slate-200 px-6 py-2 rounded-2xl text-slate-600 font-black hover:bg-slate-50 transition active:scale-95 text-xs uppercase tracking-widest shadow-sm">← Back to Hub</button>
+          <button onClick={onBack} className="bg-white border border-slate-200 px-8 py-3 rounded-2xl text-slate-600 font-black hover:bg-slate-50 transition text-xs uppercase tracking-widest shadow-sm">← Exit Registry</button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <form onSubmit={handleSubmit} className="lg:col-span-8 bg-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col border border-slate-100 ring-1 ring-black/5 animate-in slide-in-from-left duration-500">
-            <div className="flex border-b bg-slate-50/50 p-1">
-              <button type="button" onClick={() => setActiveTab('details')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition rounded-2xl ${activeTab === 'details' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>1. Identity & Links</button>
-              {(newQ.type === 'calculation' || newQ.type === 'short-answer' || newQ.type === 'diagram-label' || newQ.type === 'structure') && (
-                <button type="button" onClick={() => setActiveTab('subquestions')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition rounded-2xl ${activeTab === 'subquestions' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>2. Sub-Parts</button>
-              )}
-              {newQ.type === 'mcq' && (
-                <button type="button" onClick={() => setActiveTab('options')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition rounded-2xl ${activeTab === 'options' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>2. MCQ Options</button>
-              )}
-              <button type="button" onClick={() => setActiveTab('media')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition rounded-2xl ${activeTab === 'media' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>3. Media</button>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <form onSubmit={handleSubmit} className="lg:col-span-8 bg-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col border border-slate-100 animate-in slide-in-from-left">
+            <div className="flex border-b bg-slate-50/50 p-2 gap-1 shrink-0">
+              {[
+                { id: 'identity', label: '1. Identity', icon: '🆔' },
+                { id: 'question', label: '2. Question', icon: '📝' },
+                { id: 'marking', label: '3. Marking Scheme', icon: '✍️' }
+              ].map(tab => (
+                <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id as any)} 
+                  className={`flex-1 flex items-center justify-center gap-2 py-5 text-[10px] font-black uppercase tracking-widest transition-all rounded-2xl ${activeTab === tab.id ? 'bg-white text-blue-600 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <span className="text-sm">{tab.icon}</span> {tab.label}
+                </button>
+              ))}
             </div>
 
-            <div className="p-10 space-y-8 flex-grow min-h-[550px] overflow-y-auto custom-scrollbar bg-gradient-to-b from-white to-slate-50/20">
-              {activeTab === 'details' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Course</label>
-                      <select 
-                        required
-                        className="w-full border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-blue-400 bg-white font-bold shadow-sm transition" 
-                        value={newQ.courseId} 
-                        onChange={e => setNewQ({...newQ, courseId: e.target.value})}
-                      >
-                        <option value="">-- Select Course --</option>
-                        {availableCourses.map(c => <option key={c.id} value={c.id}>{c.code} - {c.name}</option>)}
-                      </select>
+            <div className="p-10 space-y-10 flex-grow min-h-[650px] overflow-y-auto custom-scrollbar">
+              
+              {activeTab === 'identity' && (
+                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                      <FormLabel>Course Selector</FormLabel>
+                      <SelectField placeholder="-- Choose Course --" value={newQ.courseId || ''} options={availableCourses.map(c => ({ value: c.id, label: `${c.code} - ${c.name}` }))} onChange={val => setNewQ({ ...newQ, courseId: val, sectionTitle: '', topic: '' })} />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Topic / Chapter</label>
-                      <input required className="w-full border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-blue-400 bg-white font-bold shadow-sm transition" value={newQ.topic} onChange={e => setNewQ({...newQ, topic: e.target.value})} placeholder="e.g. 1.0 Hand Tools" />
+                    <div>
+                      <FormLabel>Assessment Task</FormLabel>
+                      <SelectField placeholder="-- Select Task --" disabled={!newQ.courseId} value={newQ.sectionTitle || ''} options={assessmentOptions} onChange={val => setNewQ({ ...newQ, sectionTitle: val, topic: '' })} />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Question Type</label>
-                      <select 
-                        className="w-full border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-blue-400 bg-white font-bold shadow-sm transition" 
-                        value={newQ.type} 
-                        onChange={e => setNewQ({...newQ, type: e.target.value as any, marks: e.target.value === 'mcq' ? 1 : 5})}
-                      >
-                        <option value="mcq">MCQ (Objective)</option>
-                        <option value="short-answer">Short Answer</option>
-                        <option value="structure">Structure</option>
-                        <option value="essay">Essay</option>
-                        <option value="calculation">Calculation</option>
-                        <option value="measurement">Measurement</option>
-                        <option value="diagram-label">Diagram Labeling</option>
-                      </select>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                      <FormLabel>Module / Topic (CIST Code Mapped)</FormLabel>
+                      <SelectField placeholder="-- Choose Topic --" disabled={!newQ.sectionTitle} value={newQ.topic || ''} options={topicOptions} onChange={val => setNewQ({ ...newQ, topic: val })} />
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Construct (SS/GS)</label>
-                        <select className="w-full border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-blue-400 bg-white font-bold shadow-sm transition" value={newQ.construct} onChange={e => setNewQ({...newQ, construct: e.target.value})}>
-                           <option value="SS">Specific Skills (SS)</option>
-                           <option value="GS">Generic Skills (GS)</option>
-                        </select>
-                        <p className="text-[9px] text-slate-400 font-medium ml-1">SS: Discipline-based skills &middot; GS: Soft skills/Humanities</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Taxonomy</label>
-                          <input className="w-full border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-blue-400 bg-white font-bold text-center shadow-sm" value={newQ.taxonomy} onChange={e => setNewQ({...newQ, taxonomy: e.target.value})} placeholder="C1" />
-                       </div>
-                       <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Marks</label>
-                          <input type="number" className="w-full border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-blue-400 bg-white font-bold text-center shadow-sm" value={newQ.marks} onChange={e => setNewQ({...newQ, marks: parseInt(e.target.value) || 0})} />
-                       </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Linked CLOs</label>
-                      <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-4 rounded-2xl border-2 border-slate-100 h-28 overflow-y-auto custom-scrollbar">
-                        {availableClos.map(clo => (
-                          <label key={clo} className="flex items-center gap-2 cursor-pointer group">
-                            <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked={newQ.cloKeys?.includes(clo)} onChange={() => toggleCLO(clo)} />
-                            <span className="text-[10px] font-bold text-slate-600 group-hover:text-blue-600 transition-colors">{clo}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">MQF/DA Attributes</label>
-                      <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-4 rounded-2xl border-2 border-slate-100 h-28 overflow-y-auto custom-scrollbar">
-                        {availableMqf.map(mqf => (
-                          <label key={mqf} className="flex items-center gap-2 cursor-pointer group">
-                            <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked={newQ.mqfKeys?.includes(mqf)} onChange={() => toggleMQF(mqf)} />
-                            <span className="text-[10px] font-bold text-slate-600 group-hover:text-blue-600 transition-colors">{mqf}</span>
-                          </label>
+                    <div>
+                      <FormLabel>Taxonomy Domain</FormLabel>
+                      <div className="flex gap-1 p-1 bg-slate-50 border border-slate-100 rounded-xl">
+                        {(['Cognitive', 'Psychomotor', 'Affective'] as AssessmentDomain[]).map(d => (
+                          <button key={d} type="button" onClick={() => setNewQ({ ...newQ, domain: d, taxonomy: '' })} className={`flex-1 py-2 text-[8px] font-black rounded-lg transition-all ${newQ.domain === d ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-white'}`}>
+                            {d.toUpperCase()}
+                          </button>
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-end">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Question Stem (LaTeX Supported)</label>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <FormLabel isSync>Item Type</FormLabel>
+                      <SelectField placeholder="Type" value={newQ.type || ''} options={availableTypes} onChange={val => setNewQ({ ...newQ, type: val as Question['type'] })} />
                     </div>
-                    <textarea 
-                      required 
-                      className="w-full border-2 border-slate-100 p-5 rounded-3xl h-32 outline-none focus:border-blue-400 bg-white italic text-sm shadow-sm transition" 
-                      value={newQ.text} 
-                      onChange={e => setNewQ({...newQ, text: e.target.value})} 
-                      placeholder="Question text... Use $...$ for inline math." 
-                    />
+                    <div><FormLabel isSync>Construct</FormLabel><div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold text-slate-500 text-xs text-center min-h-[50px] flex items-center justify-center">{newQ.construct || '-'}</div></div>
+                    <div>
+                      <FormLabel isSync>Taxonomy (Syllabus-Capped)</FormLabel>
+                      <SelectField placeholder="Lvl" value={newQ.taxonomy || ''} options={taxonomyOptions} onChange={handleTaxonomyChange} disabled={!newQ.sectionTitle} />
+                    </div>
+                    <div><FormLabel isSync>Auto Marks</FormLabel><div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-black text-blue-600 text-sm text-center min-h-[50px] flex items-center justify-center">{newQ.marks || 0}</div></div>
                   </div>
 
-                  {/* Marking Scheme Area: Hidden if MCQ because MCQ is auto-populated via Ticks in Options Tab */}
-                  {newQ.type !== 'mcq' && (
-                    <div className="space-y-2 pt-4 border-t border-slate-100">
-                      <div className="flex justify-between items-end">
-                        <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${isStructure ? 'text-slate-300' : 'text-slate-400'}`}>
-                          {isStructure ? 'Marking Scheme (Disabled for Structure Type)' : 'Marking Scheme / Answer Key'}
-                        </label>
-                        {!isStructure && (
-                          <MarkInputControl 
-                            onAddMark={(m) => setNewQ({...newQ, answer: (newQ.answer || '') + ` (${m} mark${m > 1 ? 's' : ''})`})}
-                          />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                      <FormLabel isSync>Linked CLOs</FormLabel>
+                      <div className="flex flex-wrap gap-2 p-5 bg-slate-50 border border-slate-100 rounded-[24px] min-h-[120px] content-start">
+                        {assessmentSpecificClos.length ? assessmentSpecificClos.map(k => {
+                            const isAuto = newQ.cloKeys?.includes(k);
+                            return (
+                                <button key={k} type="button" onClick={() => toggleLink('cloKeys', k)}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${isAuto ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100'}`}>{k}</button>
+                            );
+                        }) : <span className="text-[10px] text-slate-300 font-black uppercase m-auto italic">Select task to load CLOs</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <FormLabel>MQF/Dublin (Registry Mapped)</FormLabel>
+                      <div className="flex flex-wrap gap-2 p-5 bg-slate-50 border border-slate-100 rounded-[24px] min-h-[120px] content-start">
+                        {constrainedMqfs.length > 0 ? constrainedMqfs.map(k => (
+                          <button key={k} type="button" onClick={() => toggleLink('mqfKeys', k)}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${newQ.mqfKeys?.includes(k) ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100'}`}>{k}</button>
+                        )) : (
+                          <span className="text-[9px] text-slate-300 font-black uppercase m-auto leading-relaxed text-center italic">
+                            {newQ.taxonomy ? 'No attributes mapped to this level in Registry' : 'Select Taxonomy to load Standards'}
+                          </span>
                         )}
                       </div>
-                      <textarea 
-                        className={`w-full border-2 border-slate-100 p-5 rounded-3xl h-32 outline-none font-mono text-xs shadow-sm transition leading-relaxed ${isStructure ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-purple-50/10 focus:border-purple-400'}`}
-                        value={isStructure ? 'Marking scheme defined in sub-questions.' : (newQ.answer || '')} 
-                        onChange={e => !isStructure && setNewQ({...newQ, answer: e.target.value})} 
-                        disabled={isStructure}
-                        placeholder={isStructure ? "Disabled" : 'Example:\nDefinition of force... (1 mark)\nSI Unit is Newton... (1 mark)'} 
-                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'question' && (
+                <div className="space-y-10 animate-in fade-in slide-in-from-right-4">
+                  <div>
+                    <FormLabel>Question Stem (LaTeX enabled)</FormLabel>
+                    <textarea required className="w-full border-2 border-slate-100 p-6 rounded-[32px] h-40 outline-none focus:border-blue-400 text-sm font-medium italic text-slate-700 shadow-inner" 
+                      value={newQ.text} onChange={e => setNewQ({ ...newQ, text: e.target.value })} placeholder="Type main question here..." />
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center"><FormLabel>Question Assets (Sketch/Table)</FormLabel><div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl shadow-inner">
+                      {['figure', 'table'].map(m => <button key={m} type="button" onClick={() => setNewQ({ ...newQ, mediaType: m as any })} className={`px-8 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${newQ.mediaType === m ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>{m}</button>)}
+                    </div></div>
+                    {newQ.mediaType && (
+                      <div className="space-y-4">
+                        <div onClick={() => fileInputRef.current?.click()} className="cursor-pointer aspect-video border-4 border-dashed rounded-[40px] flex items-center justify-center bg-slate-50 hover:bg-white hover:border-blue-200 transition-all overflow-hidden relative shadow-inner">
+                          {newQ.imageUrl ? <img src={newQ.imageUrl} className="h-full w-full object-contain p-12" /> : <div className="text-center"><span className="text-6xl block mb-2 opacity-20">{newQ.mediaType === 'table' ? '📊' : '📐'}</span><span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Upload Asset as {newQ.mediaType}</span></div>}
+                          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'imageUrl')} />
+                        </div>
+                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                            <FormLabel>{newQ.mediaType === 'table' ? 'Table Label' : 'Figure Label'}</FormLabel>
+                            <input className="w-full bg-white border border-slate-100 p-4 rounded-xl text-[11px] font-black text-slate-700 shadow-sm" value={newQ.figureLabel} onChange={e => setNewQ({ ...newQ, figureLabel: e.target.value })} placeholder="e.g. Table 1: Force distribution" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {newQ.type === 'mcq' && (
+                    <div className="p-8 bg-emerald-50/40 rounded-[40px] border border-emerald-100">
+                      <FormLabel className="text-emerald-600 mb-6">MCQ Responses</FormLabel>
+                      {['A', 'B', 'C', 'D'].map((l, i) => (
+                        <div key={l} className="flex items-center gap-4 mb-4 last:mb-0">
+                          <button type="button" onClick={() => setNewQ({ ...newQ, answer: `Option ${l}` })} className={`w-12 h-12 rounded-xl font-black transition-all ${newQ.answer === `Option ${l}` ? 'bg-emerald-500 text-white shadow-lg scale-110' : 'bg-white text-slate-300 border border-slate-200'}`}>{l}</button>
+                          <input className="flex-grow border border-slate-100 p-3.5 rounded-xl outline-none focus:border-emerald-300 bg-white shadow-sm font-bold text-sm" value={newQ.options?.[i] || ''} onChange={e => { const opts = [...(newQ.options || [])]; opts[i] = e.target.value; setNewQ({ ...newQ, options: opts }); }} placeholder={`Option ${l}`} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {['structure', 'calculation', 'essay'].includes(newQ.type || '') && (
+                    <div className="space-y-6 pt-6 border-t border-slate-100">
+                      <div className="flex justify-between items-center"><FormLabel>Sub-Parts (a, b, c...)</FormLabel><button type="button" onClick={() => setNewQ({ ...newQ, subQuestions: [...(newQ.subQuestions || []), { label: String.fromCharCode(97 + (newQ.subQuestions?.length || 0)) + ")", text: '', marks: 1 }] })} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">+ Add Part</button></div>
+                      <div className="space-y-4">
+                        {(newQ.subQuestions || []).map((sub, i) => (
+                          <div key={i} className="flex gap-4 p-6 bg-slate-50 border border-slate-100 rounded-[32px] items-start">
+                            <div className="shrink-0"><FormLabel>Label</FormLabel><input className="w-12 border-2 border-white bg-white text-center font-black rounded-xl p-2.5 outline-none focus:border-blue-400" value={sub.label} onChange={e => { const s = [...(newQ.subQuestions || [])]; s[i].label = e.target.value; setNewQ({ ...newQ, subQuestions: s }); }} /></div>
+                            <div className="flex-grow"><FormLabel>Part Stem</FormLabel><textarea className="w-full border-2 border-white bg-white rounded-2xl p-4 text-xs font-bold outline-none focus:border-blue-400 min-h-[60px]" value={sub.text} onChange={e => { const s = [...(newQ.subQuestions || [])]; s[i].text = e.target.value; setNewQ({ ...newQ, subQuestions: s }); }} placeholder="Enter sub-part content..." /></div>
+                            <div className="shrink-0"><FormLabel>Marks</FormLabel><input type="number" className="w-14 border-2 border-white bg-white text-center font-black rounded-xl p-2.5" value={sub.marks} onChange={e => { const s = [...(newQ.subQuestions || [])]; s[i].marks = parseInt(e.target.value) || 0; setNewQ({ ...newQ, subQuestions: s }); }} /></div>
+                            <button type="button" onClick={() => setNewQ({ ...newQ, subQuestions: (newQ.subQuestions || []).filter((_, idx) => idx !== i) })} className="text-slate-300 hover:text-rose-500 font-bold text-xl p-2 mt-7">&times;</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {activeTab === 'media' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
-                   <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl w-fit">
-                      <button type="button" onClick={() => setNewQ({...newQ, mediaType: 'figure'})} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${newQ.mediaType === 'figure' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>Figure/Diagram</button>
-                      <button type="button" onClick={() => setNewQ({...newQ, mediaType: 'table'})} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${newQ.mediaType === 'table' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>Real Table</button>
-                      <button type="button" onClick={() => setNewQ({...newQ, mediaType: 'table-figure'})} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${newQ.mediaType === 'table-figure' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>Table Figure</button>
-                   </div>
-
-                   {newQ.imageUrl && (newQ.mediaType === 'figure' || newQ.mediaType === 'table-figure') && (
-                     <ImageAssetPreview 
-                        url={newQ.imageUrl} 
-                        onClear={() => setNewQ({ ...newQ, imageUrl: undefined })} 
-                     />
-                   )}
-
-                   {(newQ.mediaType === 'figure' || newQ.mediaType === 'table-figure') ? (
-                     <div className="space-y-4">
-                       <MediaLabelInput 
-                         type={newQ.mediaType}
-                         value={newQ.figureLabel || ''}
-                         onChange={(val) => setNewQ({ ...newQ, figureLabel: val })}
-                       />
-
-                       <div 
-                         onClick={() => fileInputRef.current?.click()} 
-                         className={`cursor-pointer group relative max-w-lg aspect-video border-4 border-dashed rounded-[32px] flex items-center justify-center transition-all shadow-sm ${
-                           newQ.imageUrl ? 'border-blue-200 bg-blue-50/10 hover:bg-blue-50/20' : 'border-slate-100 bg-white hover:bg-blue-50'
-                         }`}
-                       >
-                          {newQ.imageUrl ? (
-                            <div className="relative h-full w-full flex flex-col items-center justify-center gap-2 p-6 text-center">
-                              <span className="text-4xl">🔄</span>
-                              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Replace Media Asset</p>
-                              <div className="mt-2 opacity-50 max-h-32 overflow-hidden rounded-xl border border-blue-100 bg-white">
-                                <img src={newQ.imageUrl} className="h-full w-full object-contain" alt="Asset" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-blue-200 flex flex-col items-center">
-                              <span className="text-7xl block mb-4">🖼️</span>
-                              <p className="text-[11px] font-black uppercase tracking-widest">Upload Media Asset</p>
-                            </div>
-                          )}
-                        </div>
-                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-                     </div>
-                   ) : (
-                     <RealTableEditor 
-                        tableData={newQ.tableData} 
-                        onChange={(data) => setNewQ({ ...newQ, tableData: data })} 
-                     />
-                   )}
-                </div>
-              )}
-
-              {activeTab === 'subquestions' && (
-                <div className="space-y-4 animate-in slide-in-from-right-4">
-                  {newQ.subQuestions?.map((sub, idx) => (
-                    <div key={idx} className="bg-white p-5 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col gap-4">
-                      <div className="flex gap-4 items-center">
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <label className="text-[8px] font-black text-slate-400 uppercase">Part</label>
-                          <input className="w-12 border-2 border-slate-50 bg-slate-50/50 rounded-xl p-2 text-center font-black focus:border-blue-200 outline-none" value={sub.label} onChange={e => {
-                             const subs = [...(newQ.subQuestions || [])];
-                             subs[idx] = { ...subs[idx], label: e.target.value };
-                             setNewQ({...newQ, subQuestions: subs});
-                          }} />
-                        </div>
-                        <div className="flex flex-col gap-1 flex-grow">
-                          <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Sub-Question Stem</label>
-                          <input className="w-full border-2 border-slate-50 bg-slate-50/50 rounded-xl p-2 italic text-sm focus:border-blue-200 outline-none" value={sub.text} onChange={e => {
-                             const subs = [...(newQ.subQuestions || [])];
-                             subs[idx] = { ...subs[idx], text: e.target.value };
-                             setNewQ({...newQ, subQuestions: subs});
-                          }} />
-                        </div>
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <label className="text-[8px] font-black text-slate-400 uppercase text-center">Marks</label>
-                          <input type="number" className="w-14 border-2 border-slate-50 bg-slate-50/50 rounded-xl p-2 text-center font-black focus:border-blue-200 outline-none" value={sub.marks} onChange={e => {
-                             const subs = [...(newQ.subQuestions || [])];
-                             subs[idx] = { ...subs[idx], marks: parseInt(e.target.value) || 0 };
-                             setNewQ({...newQ, subQuestions: subs, marks: subs.reduce((a, b) => a + (b.marks || 0), 0)});
-                          }} />
-                        </div>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            const subs = [...(newQ.subQuestions || [])];
-                            subs.splice(idx, 1);
-                            setNewQ({ ...newQ, subQuestions: subs, marks: subs.reduce((a, b) => a + (b.marks || 0), 0) });
-                          }}
-                          className="text-red-300 hover:text-red-500 font-bold self-end mb-2 ml-2"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                          <div className="flex justify-between items-center">
-                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Sub-Question Answer / Criteria</label>
-                            <MarkInputControl 
-                              onAddMark={(m) => {
-                                const subs = [...(newQ.subQuestions || [])];
-                                const current = subs[idx].answer || '';
-                                const markStr = ` (${m} mark${m > 1 ? 's' : ''})`;
-                                subs[idx] = { ...subs[idx], answer: current + markStr };
-                                setNewQ({...newQ, subQuestions: subs});
-                              }}
-                              className="scale-90 origin-right"
-                            />
-                          </div>
-                          <textarea 
-                            className="w-full border-2 border-slate-50 bg-slate-50/50 rounded-xl p-3 text-xs font-mono focus:border-purple-200 outline-none resize-none h-20" 
-                            value={sub.answer || ''} 
-                            onChange={e => {
-                                const subs = [...(newQ.subQuestions || [])];
-                                subs[idx] = { ...subs[idx], answer: e.target.value };
-                                setNewQ({...newQ, subQuestions: subs});
-                            }} 
-                            placeholder="Answer key and marking criteria for this part..."
-                          />
+              {activeTab === 'marking' && (
+                <div className="space-y-12 animate-in fade-in slide-in-from-right-4">
+                  <div className="bg-purple-50/50 p-8 rounded-[40px] border border-purple-100">
+                    <div className="flex justify-between items-center mb-6"><FormLabel className="text-purple-600">Main Solution (LaTeX Enabled)</FormLabel><MarkInputControl onAddMark={m => setNewQ({ ...newQ, answer: (newQ.answer || '') + ` (${m} marks)` })} /></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                      <textarea className="w-full border-2 border-white bg-white p-6 rounded-[32px] h-[300px] outline-none focus:border-purple-400 text-xs font-mono shadow-inner leading-relaxed" 
+                        value={newQ.answer} onChange={e => setNewQ({ ...newQ, answer: e.target.value })} placeholder="Describe marking steps..." />
+                      <div className="bg-white p-6 rounded-[32px] border-2 border-dashed border-slate-100 overflow-y-auto max-h-[300px] shadow-inner">
+                        {newQ.answer ? <LatexRenderer text={newQ.answer} className="text-xs text-slate-700 leading-relaxed" /> : <div className="h-full flex items-center justify-center italic text-slate-300 font-bold uppercase text-[10px]">Preview Solution Text</div>}
                       </div>
                     </div>
-                  ))}
-                  <button 
-                    type="button" 
-                    onClick={() => setNewQ({...newQ, subQuestions: [...(newQ.subQuestions || []), {label: String.fromCharCode(97 + (newQ.subQuestions?.length || 0)) + ')', text: '', marks: 1}]})} 
-                    className="w-full py-4 border-2 border-dashed border-slate-200 text-slate-400 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 transition"
-                  >
-                    + Add New Part Description
-                  </button>
-                </div>
-              )}
-              
-              {activeTab === 'options' && (
-                <div className="space-y-6 animate-in slide-in-from-right-4">
-                  {['A', 'B', 'C', 'D'].map((label, idx) => {
-                    const isCorrect = newQ.answer?.trim().startsWith(`Option ${label}`);
-                    return (
-                      <div key={label} className="flex items-center gap-6 group">
-                        <div className="flex items-center gap-2">
-                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm border transition-all ${isCorrect ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                             {label}
-                           </div>
-                           <button 
-                             type="button" 
-                             onClick={() => handleSetCorrectMCQ(label)}
-                             className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all ${isCorrect ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-100 text-slate-200 hover:border-emerald-200 hover:text-emerald-400'}`}
-                             title="Mark as Correct Answer"
-                           >
-                             ✓
-                           </button>
+                    
+                    <div className="space-y-4 pt-6 border-t border-purple-100">
+                       <FormLabel className="text-purple-400">Main Solution Sketch</FormLabel>
+                       <div className="flex gap-6 items-start">
+                          <div onClick={() => answerSketchRef.current?.click()} className="w-40 h-40 border-4 border-dashed border-purple-100 rounded-[28px] bg-white flex flex-col items-center justify-center cursor-pointer hover:border-purple-300 transition-all overflow-hidden shrink-0 shadow-sm">
+                             {newQ.answerImageUrl ? (
+                               <img src={newQ.answerImageUrl} className="h-full w-full object-contain p-2" />
+                             ) : (
+                               <div className="text-center"><span className="text-3xl block mb-2">🎨</span><span className="text-[8px] font-black text-purple-300 uppercase tracking-widest">Upload Solution<br/>Sketch</span></div>
+                             )}
+                             <input type="file" ref={answerSketchRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'answerImageUrl')} />
+                          </div>
+                          <div className="flex-grow">
+                             <input className="w-full border-2 border-white bg-white p-4 rounded-xl text-[10px] font-black text-purple-900 shadow-sm focus:border-purple-200 outline-none mb-4" placeholder="Solution Sketch Label" value={newQ.answerFigureLabel} onChange={e => setNewQ({...newQ, answerFigureLabel: e.target.value})} />
+                             <p className="text-[9px] text-purple-400 italic leading-relaxed">This illustration will only appear on the Answer Scheme.</p>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  {(newQ.subQuestions || []).length > 0 && (
+                    <div className="space-y-8 pt-6">
+                      <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest pl-2 flex items-center gap-2"><span className="w-1 h-4 bg-indigo-500 rounded-full"></span>Sub-Part Solutions (LaTeX Enabled)</h4>
+                      {(newQ.subQuestions || []).map((sub, i) => (
+                        <div key={i} className="p-8 bg-slate-50 border border-slate-100 rounded-[40px] space-y-6">
+                          <div className="flex justify-between items-center"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Part {sub.label} Grading Policy</span><MarkInputControl onAddMark={m => { const s = [...(newQ.subQuestions || [])]; s[i].answer = (s[i].answer || '') + ` (${m} marks)`; setNewQ({ ...newQ, subQuestions: s }); }} /></div>
+                          
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                               <FormLabel className="text-[8px] text-indigo-400 mb-1">Editor</FormLabel>
+                               <textarea className="w-full border-2 border-white bg-white rounded-[24px] p-4 text-xs font-mono outline-none focus:border-blue-400 h-40 shadow-sm" value={sub.answer || ''} onChange={e => { const s = [...(newQ.subQuestions || [])]; s[i].answer = e.target.value; setNewQ({ ...newQ, subQuestions: s }); }} placeholder={`Breakdown for ${sub.label}...`} />
+                            </div>
+                            <div>
+                               <FormLabel className="text-[8px] text-emerald-400 mb-1">Live Preview</FormLabel>
+                               <div className="w-full bg-white border-2 border-dashed border-slate-200 rounded-[24px] p-6 h-40 overflow-y-auto shadow-inner">
+                                  {sub.answer ? <LatexRenderer text={sub.answer} className="text-xs text-slate-700 leading-relaxed" /> : <div className="h-full flex items-center justify-center italic text-slate-200 font-bold uppercase text-[9px]">Preview</div>}
+                               </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-6 items-center pt-4 border-t border-slate-100">
+                             <div 
+                                onClick={() => document.getElementById(`ans-sub-q-file-${i}`)?.click()}
+                                className="w-24 h-24 border-2 border-dashed border-slate-200 bg-white rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-300 transition shrink-0 shadow-inner"
+                             >
+                                {sub.answerImageUrl ? <img src={sub.answerImageUrl} className="h-full w-full object-contain p-2" /> : <span className="text-[8px] font-black text-slate-300 uppercase">Part {sub.label}<br/>Sketch</span>}
+                                <input id={`ans-sub-q-file-${i}`} type="file" className="hidden" accept="image/*" onChange={(e) => handleSubPartImage(i, e, 'answerImageUrl')} />
+                             </div>
+                             <div className="flex-grow">
+                                <FormLabel>Part Solution Caption</FormLabel>
+                                <input className="w-full bg-white border border-slate-100 p-3 rounded-xl text-[10px] font-black text-slate-600 shadow-sm" value={sub.answerFigureLabel || ''} onChange={e => { const s = [...(newQ.subQuestions || [])]; s[i].answerFigureLabel = e.target.value; setNewQ({ ...newQ, subQuestions: s }); }} placeholder="e.g. Completed Matrix Solution" />
+                             </div>
+                          </div>
                         </div>
-                        <input 
-                          className={`flex-grow border-2 p-4 rounded-2xl outline-none transition shadow-sm font-bold ${isCorrect ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-100 bg-white focus:border-blue-400'}`} 
-                          value={newQ.options?.[idx] || ''} 
-                          onChange={e => {
-                            const opts = [...(newQ.options || ['', '', '', ''])];
-                            opts[idx] = e.target.value;
-                            setNewQ({...newQ, options: opts});
-                          }}
-                          placeholder={`Provide text for option ${label}...`}
-                        />
-                      </div>
-                    );
-                  })}
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="p-10 bg-slate-50 border-t flex gap-4">
-               <button type="submit" className="w-full bg-blue-600 text-white font-black py-6 rounded-3xl shadow-2xl uppercase tracking-widest text-sm transition transform active:scale-95 hover:bg-blue-700">Save Item to Shared Bank</button>
+            <div className="p-10 bg-slate-900 flex justify-center border-t border-slate-800 shrink-0">
+              <button type="submit" className="w-full max-w-lg bg-blue-600 text-white font-black py-6 rounded-[32px] shadow-2xl uppercase tracking-[0.3em] text-sm hover:bg-blue-500 transition transform active:scale-95">Register Academic Item</button>
             </div>
           </form>
 
-          <div className="lg:col-span-4 bg-white p-8 rounded-[40px] shadow-xl border border-slate-100 flex flex-col h-[750px] sticky top-8">
-            <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-4">
-              <h3 className="font-black text-[11px] text-slate-400 uppercase tracking-widest">BANK REPOSITORY</h3>
-              {selectedIds.size > 0 && (
-                <span className="text-[10px] font-black bg-blue-600 text-white px-3 py-1 rounded-full shadow-lg animate-in zoom-in">{selectedIds.size} SELECTED</span>
-              )}
-            </div>
-            
-            <div className="space-y-4 overflow-y-auto flex-grow pr-2 custom-scrollbar pb-4">
-              {currentBank.length > 0 ? (
-                currentBank.slice().reverse().map(q => (
-                  <BankSidebarItem 
-                    key={q.id}
-                    question={q}
-                    isSelected={selectedIds.has(q.id)}
-                    onToggle={() => toggleSelection(q.id)}
-                    courseCode={getCourseCode(q.courseId)}
-                  />
-                ))
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-300 italic text-center py-20 opacity-40">
-                   <span className="text-5xl mb-4">📥</span>
-                   <p className="text-[11px] font-black uppercase tracking-widest">No items found</p>
+          <div className="lg:col-span-4 bg-white p-10 rounded-[48px] shadow-2xl border border-slate-100 flex flex-col h-[750px] sticky top-8">
+            <h3 className="font-black text-[11px] text-slate-900 uppercase tracking-[0.2em] mb-8 border-b pb-6">Item Registry Feed</h3>
+            <div className="space-y-5 overflow-y-auto flex-grow custom-scrollbar pr-2">
+              {currentBank.slice().reverse().map(q => (
+                <div key={q.id} className="p-5 border-2 border-slate-50 rounded-3xl hover:border-blue-200 transition bg-white shadow-sm group cursor-pointer">
+                  <div className="flex gap-2 mb-3"><span className="bg-indigo-600 text-white px-2 py-0.5 rounded-md text-[8px] font-black uppercase">{availableCourses.find(c => c.id === q.courseId)?.code}</span><span className="text-[8px] font-black text-slate-400 uppercase truncate border-l pl-2">{getFullTopicDisplay(q)}</span></div>
+                  <p className="text-[11px] text-slate-700 font-medium italic line-clamp-2 leading-relaxed opacity-80 group-hover:opacity-100">"{q.text}"</p>
+                  <div className="mt-3 pt-3 border-t border-slate-50 flex justify-between items-center text-[9px] font-black text-slate-300 uppercase"><span>{q.taxonomy} / {q.marks}M</span><span className="group-hover:text-blue-500 transition-colors">Details →</span></div>
                 </div>
-              )}
+              ))}
             </div>
-
-            {selectedIds.size > 0 && (
-              <div className="mt-6 pt-6 border-t border-slate-100 animate-in slide-in-from-bottom-6">
-                <div className="flex flex-col gap-3">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setSelectedIds(new Set())}
-                      className="flex-1 bg-slate-100 text-slate-500 font-black py-3 rounded-2xl uppercase tracking-widest text-[10px] hover:bg-slate-200 transition"
-                    >
-                      Clear
-                    </button>
-                    <button 
-                      onClick={() => setSelectedIds(new Set(currentBank.map(q => q.id)))}
-                      className="flex-1 bg-slate-100 text-slate-500 font-black py-3 rounded-2xl uppercase tracking-widest text-[10px] hover:bg-slate-200 transition"
-                    >
-                      All
-                    </button>
-                  </div>
-                  <button 
-                    onClick={handleBatchAddClick}
-                    className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 hover:bg-slate-800 transition transform active:scale-95"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5z" />
-                    </svg>
-                    Save Selected to Paper
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

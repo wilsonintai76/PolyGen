@@ -3,7 +3,7 @@ import { Question, AssessmentPaper, Course, InstitutionalBranding } from './type
 
 export const DEFAULT_BRANDING: InstitutionalBranding = {
   institutionName: "POLITEKNIK MALAYSIA KUCHING SARAWAK",
-  logoUrl: ""
+  logoUrl: "" // Uses default SVG if empty
 };
 
 export const SAMPLE_COURSES: Course[] = [
@@ -11,182 +11,168 @@ export const SAMPLE_COURSES: Course[] = [
     id: "course-1",
     code: "DJJ10243",
     name: "WORKSHOP TECHNOLOGY",
-    // Fixed: replaced 'department' with 'deptId' and added required 'programmeId' to match Course interface in types.ts
     deptId: "1",
     programmeId: "p1",
     clos: {
-      "CLO 1": "Explain the use of listed workshop tools correctly.",
-      "CLO 2": "Perform workshop operations according to safety standards.",
-      "CLO 3": "Apply measurements using precise hand tools."
+      "CLO 1": "Apply the knowledge of basic mechanical components and equipment, hand tools and measuring equipment in workshop technology (C3, PLO1)",
+      "CLO 2": "Perform workshop operations...",
     },
     mqfs: {
-      "DK1": "Descriptive Knowledge",
-      "DK3": "Specialist Knowledge",
-      "DK4": "Specialist Knowledge: Measurements"
-    }
-  },
-  {
-    id: "course-2",
-    code: "DJJ20063",
-    name: "ENGINEERING MECHANICS",
-    // Fixed: replaced 'department' with 'deptId' and added required 'programmeId' to match Course interface in types.ts
-    deptId: "1",
-    programmeId: "p2",
-    clos: {
-      "CLO 1": "Analyze static equilibrium for particles and rigid bodies.",
-      "CLO 2": "Calculate moments of inertia and centroids for composite areas.",
-      "CLO 3": "Apply kinematics principles to solve particle motion problems."
+      "DK3": "DK3 – A coherent procedural formulation of engineering fundamentals...",
+      "DK4": "DK4 – Engineering specialist knowledge that provides the body of knowledge..."
     },
-    mqfs: {
-      "DK2": "Research-based Knowledge",
-      "DK4": "Engineering Problems",
-      "DK5": "Engineering Design"
-    }
-  },
-  {
-    id: "course-3",
-    code: "DEC10013",
-    name: "COMPUTER SYSTEM & NETWORKS",
-    // Fixed: replaced 'department' with 'deptId' and added required 'programmeId' to match Course interface in types.ts
-    deptId: "2",
-    programmeId: "p3",
-    clos: {
-      "CLO 1": "Identify the internal components of a computer system.",
-      "CLO 2": "Configure basic local area network (LAN) settings.",
-      "CLO 3": "Troubleshoot common operating system installation errors."
-    },
-    mqfs: {
-      "DK1": "Computing Fundamentals",
-      "DK2": "Network Architecture",
-      "DK3": "System Security"
-    }
-  }
-];
-
-export const QUESTION_BANK: Question[] = [
-  // --- WORKSHOP TECHNOLOGY (course-1) ---
-  {
-    id: "q-101",
-    courseId: "course-1",
-    topic: "1.0 Hand Tools",
-    cloKeys: ["CLO 1"],
-    sectionTitle: "PART A: IDENTIFICATION",
-    number: "1.",
-    text: "Identify the main components of a Vernier Caliper as shown in the diagram. Explain why zero error calibration is essential before measurement.",
-    marks: 5,
-    type: "diagram-label",
-    mqfKeys: ["DK1"],
-    imageUrl: "https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=400",
-    taxonomy: "C1",
-    construct: "SS",
-    figureLabel: "Figure 1: Standard Metric Vernier Caliper",
-    mediaType: "figure",
-    answer: "1. Main Jaws (1 mark)\n2. Depth Probe (1 mark)\n3. Vernier Scale (1 mark)\nZero error calibration ensures accuracy by compensating for any offset in the closed jaw position. (2 marks)"
-  },
-  {
-    id: "q-102",
-    courseId: "course-1",
-    topic: "2.0 Drilling",
-    cloKeys: ["CLO 2"],
-    sectionTitle: "PART B: CALCULATION",
-    number: "2.",
-    text: "A milling cutter has a diameter ($D$) of $50$ mm and rotates at $N$ RPM. Given the cutting speed $V_c$ formula: \n\n $$V_c = \\frac{\\pi \\times D \\times N}{1000}$$ \n\n Calculate the required spindle speed ($N$) if the cutting speed is $V_c = 30$ m/min.",
-    marks: 10,
-    type: "calculation",
-    mqfKeys: ["DK3", "DK4"],
-    taxonomy: "C3",
-    construct: "SS",
-    subQuestions: [
-      { label: "a)", text: "Rearrange the formula to solve for $N$ in terms of $V_c$ and $D$.", marks: 3, answer: "$N = \\frac{1000 \\times V_c}{\\pi \\times D}$ (3 marks)" },
-      { label: "b)", text: "Calculate the value of $N$ in RPM. Round to the nearest integer.", marks: 7, answer: "$N = \\frac{1000 \\times 30}{\\pi \\times 50} \\approx 191$ RPM (7 marks)" }
+    jsuTemplate: [
+      {
+        task: "QUIZ",
+        mqfCluster: "DK 3 – A coherent procedural formulation of engineering fundamentals required in an accepted sub-discipline",
+        clos: ["CLO 1"],
+        topicCode: "1.0 Hand Tools",
+        construct: "1.1 Explain the types, parts and uses of:\n1.2 Apply of Measurement Hand Tools",
+        itemTypes: ["Objective"],
+        levels: {
+          "C1": { count: "1", marks: 4 },
+          "C2": { count: "1", marks: 0 } // Note: PDF matrix implies C2 presence, though marks might vary in actual Qs
+        },
+        domain: "Cognitive"
+      },
+      {
+        task: "QUIZ",
+        mqfCluster: "DK 4 – Engineering specialist knowledge that provides the body of knowledge for an accepted sub-discipline",
+        clos: ["CLO 1"],
+        topicCode: "2.0 Drilling",
+        construct: "2.1.5 Method to measure the spindle speed revolution (rpm) and the feedrate including factors that influence the selection of the cutting speed.",
+        itemTypes: ["Subjective"],
+        levels: {
+          "C1": { count: "1", marks: 4 },
+          "C3": { count: "2", marks: 12 }
+        },
+        domain: "Cognitive"
+      }
     ]
-  },
-  {
-    id: "q-103",
-    courseId: "course-1",
-    topic: "1.0 Hand Tools",
-    cloKeys: ["CLO 1"],
-    number: "3.",
-    text: "Which of the following is the standard angle for a center punch tip?",
-    marks: 1,
-    type: "mcq",
-    options: ["30 degrees", "60 degrees", "90 degrees", "120 degrees"],
-    mqfKeys: ["DK1"],
-    taxonomy: "C1",
-    construct: "GS",
-    answer: "Option C: 90 degrees (1 mark)"
-  },
-
-  // --- ENGINEERING MECHANICS (course-2) ---
-  {
-    id: "q-201",
-    courseId: "course-2",
-    topic: "4.0 Equilibrium of Rigid Bodies",
-    cloKeys: ["CLO 1"],
-    sectionTitle: "PART C: STATICS",
-    number: "4.",
-    text: "The table below shows the forces acting on a 2D truss at nodes A, B, and C. Analyze the vertical equilibrium.",
-    marks: 8,
-    type: "short-answer",
-    mqfKeys: ["DK4"],
-    taxonomy: "C4",
-    construct: "SS",
-    mediaType: "table",
-    tableData: {
-      label: "Table 1: Applied Nodal Forces",
-      headers: ["Node", "Force (kN)", "Direction", "Angle (°)"],
-      rows: [
-        ["A", "10", "Down", "90"],
-        ["B", "15", "Left", "180"],
-        ["C", "20", "Diagonal", "45"]
-      ]
-    },
-    answer: "Sum of vertical forces: $-10 - 20 \\sin(45) = -24.14$ kN. (4 marks)\nTruss is not in vertical equilibrium. (4 marks)"
-  },
-  {
-    id: "q-202",
-    courseId: "course-2",
-    topic: "1.0 Resultant Forces",
-    cloKeys: ["CLO 1"],
-    number: "5.",
-    text: "Define 'Parallelogram Law of Forces' and illustrate how it is used to find a resultant force.",
-    marks: 5,
-    type: "essay",
-    mqfKeys: ["DK2"],
-    taxonomy: "C2",
-    construct: "GS",
-    answer: "The law states that if two forces acting at a point be represented in magnitude and direction by the two adjacent sides of a parallelogram... (3 marks)\nThe diagonal represents the resultant. (2 marks)"
   }
 ];
+
+export const QUESTION_BANK: Question[] = []; // Kept empty or minimal as we focus on the paper generation
 
 export const INITIAL_PAPER_DATA: AssessmentPaper = {
   header: {
-    department: "DEPARTMENT OF MECHANICAL ENGINEERING",
+    department: "DEPARTMENT OF MECHANICAL",
     courseCode: "DJJ10243",
     courseName: "WORKSHOP TECHNOLOGY",
     session: "II: 2025/2026",
-    assessmentType: "QUIZ 1",
+    assessmentType: "QUIZ",
     percentage: "5%",
     set: "A",
     logoUrl: ""
   },
-  matrix: [],
+  matrix: [
+    {
+      mqfCluster: "DK 3 – A coherent procedural formulation of engineering fundamentals required in an accepted sub-discipline",
+      clos: ["CLO 1"],
+      topicCode: "1.0 Hand Tools",
+      construct: "1.1 Explain the types, parts and uses of:\n1.2 Apply of Measurement Hand Tools",
+      itemTypes: ["Objective"],
+      levels: { "C1": { count: "1", marks: 4 }, "C2": { count: "1", marks: 0 } },
+      domain: "Cognitive"
+    },
+    {
+      mqfCluster: "DK 4 – Engineering specialist knowledge that provides the body of knowledge for an accepted sub-discipline",
+      clos: ["CLO 1"],
+      topicCode: "2.0 Drilling",
+      construct: "2.1.5 Method to measure the spindle speed revolution (rpm) and the feedrate including factors that influence the selection of the cutting speed.",
+      itemTypes: ["Subjective"], // Inferred from context
+      levels: { "C1": { count: "1", marks: 4 }, "C3": { count: "2", marks: 12 } }, // Q3 (6m) + Q4 (6m)? Mismatch in PDF matrix vs questions, using matrix text for display.
+      domain: "Cognitive"
+    }
+  ],
   studentInfo: {
-    duration: "45 MINUTES",
-    totalMarks: 0
+    duration: "1 HOUR",
+    totalMarks: 20
   },
   instructions: [
-    "Answer all questions in the space provided.",
-    "Calculations must show all steps and units clearly.",
-    "Programmable calculators are strictly prohibited."
+    "Attempt all questions. Be sure to show your calculation steps clearly, as partial marks may be awarded for correct working.",
+    "You are allowed to use a non-programmable scientific calculator."
   ],
-  questions: [],
+  questions: [
+    {
+      id: "q1",
+      number: "1.",
+      sectionTitle: "(EXPLAIN THE USE OF THE LISTED TOOLS) (CLO 1)",
+      text: "List Four (4) types of hand tools that are used in mechanical workshops. (C1)",
+      marks: 4,
+      taxonomy: "C1",
+      cloKeys: ["CLO 1"],
+      topic: "1.0 Hand Tools",
+      type: "short-answer",
+      answer: "a. Files (1 mark)\nb. Scriber (1 mark)\nc. Ball pen hammer (1 mark)\nd. Chisel (1 mark)\n**any hand tools related to mechanical workshop are accepted",
+      mqfKeys: ["DK 3"]
+    },
+    {
+      id: "q2",
+      number: "2.",
+      sectionTitle: "(CONDUCT THE DRILLING MACHINE OPERATION) (CLO 1)",
+      text: "State Four (4) method to classify drill bit size. (C1)",
+      marks: 4,
+      taxonomy: "C1",
+      cloKeys: ["CLO 1"],
+      topic: "2.0 Drilling",
+      type: "short-answer",
+      answer: "• Metric (1 mark)\n• Fractional (1 mark)\n• Number (1 mark)\n• Letter (1 mark)",
+      mqfKeys: ["DK 4"]
+    },
+    {
+      id: "q3",
+      number: "3.",
+      sectionTitle: "(APPLY OF MEASUREMENT HAND TOOLS) (CLO 1)",
+      text: "Based on Vernier caliper and micrometer in Figure 1 below, determine the correct reading (C3)",
+      marks: 6,
+      taxonomy: "C3",
+      cloKeys: ["CLO 1"],
+      topic: "1.0 Hand Tools",
+      type: "structure",
+      mqfKeys: ["DK 3"],
+      subQuestions: [
+        {
+           label: "",
+           text: "**Vernier Caliper Reading:**",
+           imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/da/Vernier_caliper_scales.svg/1200px-Vernier_caliper_scales.svg.png", 
+           figureLabel: "",
+           marks: 3,
+           mediaType: "figure",
+           answer: "Main scale reading: 0.00 cm (1 mark)\nVernier scale reading: 0.06 cm (1 mark)\nMeasurement reading: 0.06 cm (1 mark)"
+        },
+        {
+           label: "",
+           text: "**Micrometer Reading:**",
+           imageUrl: "https://upload.wikimedia.org/wikipedia/commons/1/1d/Micrometer_reading_2.jpg",
+           figureLabel: "Figure 1",
+           marks: 3,
+           mediaType: "figure",
+           answer: "First part of the measurement: 2.50 mm (1 mark)\nSecond part of the measurement: 0.38 mm (1 mark)\nFinal measurement: 2.88 mm (1 mark)"
+        }
+      ]
+    },
+    {
+      id: "q4",
+      number: "4.",
+      sectionTitle: "(CONDUCT THE DRILLING MACHINE OPERATION) (CLO 1)",
+      text: "Determine the feed rate, $V_f$ for drilling Low Carbon Steel using a 6.0 mm drill bit (2 flutes). Use a cutting speed, $V_s$ of 70 m/min and a chip load, $f_z$ of 0.025 mm/tooth. (C3)",
+      marks: 6,
+      taxonomy: "C3",
+      cloKeys: ["CLO 1"],
+      topic: "2.0 Drilling",
+      type: "calculation",
+      mqfKeys: ["DK 4"],
+      answer: "Given: $V_c = 70$ m/min, $f_z = 0.025$ mm/tooth, $D = 6$ mm, $z = 2$\n\n1. Calculate Spindle Speed ($N$):\n$$ N = \\frac{V_c \\times 1000}{\\pi \\times D} = \\frac{70 \\times 1000}{3.142 \\times 6} = 3713.14 \\text{ rpm} $$ (3 marks)\n\n2. Calculate Feed Rate ($V_f$):\n$$ V_f = f_z \\times z \\times N = 0.025 \\times 2 \\times 3713.14 = 185.66 \\text{ mm/min} $$ (3 marks)"
+    }
+  ],
   footer: {
-    preparedBy: "MOHD AMIRUL (LECTURER)",
-    reviewedBy: "HJH. SITI KHADIJAH (COURSE COORDINATOR)",
-    endorsedBy: "TN. HJ. RAMLI (HEAD OF DEPARTMENT)",
-    preparedDate: "12 FEB 2025",
-    reviewedDate: "15 FEB 2025",
-    endorsedDate: "18 FEB 2025"
-  }
+    preparedBy: "WILSON BIN INTAI\n(COURSE LECTURER)",
+    reviewedBy: "PN. HAJAH\n(COURSE COORDINATOR)",
+    endorsedBy: "TN. HJ. RAMLI\n(HEAD OF DEPARTMENT)",
+    preparedDate: "12 FEB 2026",
+    reviewedDate: "15 FEB 2026",
+    endorsedDate: "18 FEB 2026"
+  },
+  status: 'draft'
 };

@@ -11,9 +11,6 @@ interface CalculationPartsProps {
 }
 
 export const CalculationParts: React.FC<CalculationPartsProps> = ({ subQuestions, editMode, onChange }) => {
-  // We use a ref to trigger file input clicks, but since we map over subquestions, 
-  // we'll handle the click by ID or index within the render loop directly using unique IDs.
-  
   const handleSubUpdate = (idx: number, field: keyof QuestionPart, value: any) => {
     const subs = [...subQuestions];
     subs[idx] = { ...subs[idx], [field]: value };
@@ -58,7 +55,6 @@ export const CalculationParts: React.FC<CalculationPartsProps> = ({ subQuestions
                   />
                 </div>
                 
-                {/* Side-by-Side Editor for Sub-Question Text */}
                 <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="flex flex-col h-full">
                     <label className="text-[8px] text-blue-500 font-black uppercase mb-1 ml-1">Part Stem (LaTeX Supported)</label>
@@ -99,7 +95,6 @@ export const CalculationParts: React.FC<CalculationPartsProps> = ({ subQuestions
                 >×</button>
               </div>
 
-              {/* MEDIA CONTROLS FOR SUB-QUESTION */}
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
                 <div className="flex justify-between items-center mb-2">
                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Attached Media (Optional)</label>
@@ -154,12 +149,16 @@ export const CalculationParts: React.FC<CalculationPartsProps> = ({ subQuestions
 
                 {sub.mediaType === 'table' && sub.tableData && (
                    <div className="space-y-2">
-                      <input 
-                           className="w-full border border-slate-200 rounded-lg p-2 text-xs outline-none focus:border-blue-300 mb-2" 
-                           placeholder="Table Label (e.g. Table 1(a))" 
-                           value={sub.tableData.label || ''}
-                           onChange={(e) => handleSubUpdate(idx, 'tableData', { ...sub.tableData!, label: e.target.value })}
-                      />
+                      {/* TABLE LABEL ON TOP IN EDITOR */}
+                      <div className="flex flex-col gap-1 mb-2">
+                         <label className="text-[8px] text-blue-400 font-black uppercase ml-1">Table Label</label>
+                         <input 
+                              className="w-full border border-slate-200 rounded-lg p-2 text-xs outline-none focus:border-blue-300" 
+                              placeholder="Table Label (e.g. Table 1(a))" 
+                              value={sub.tableData.label || ''}
+                              onChange={(e) => handleSubUpdate(idx, 'tableData', { ...sub.tableData!, label: e.target.value })}
+                         />
+                      </div>
                       <div className="overflow-x-auto bg-white border border-slate-200 rounded-lg p-2">
                         <table className="w-full text-[10px] border-collapse">
                           <thead>
@@ -208,7 +207,6 @@ export const CalculationParts: React.FC<CalculationPartsProps> = ({ subQuestions
                 )}
               </div>
 
-              {/* Sub-Answer Scheme Editor */}
               <div className="space-y-2 pt-2 border-t border-slate-50">
                 <div className="flex justify-between items-center">
                     <label className="text-[8px] text-purple-600 font-black uppercase tracking-widest flex items-center gap-1 ml-1">
@@ -244,16 +242,12 @@ export const CalculationParts: React.FC<CalculationPartsProps> = ({ subQuestions
               </div>
             </div>
           ) : (
-             // PREVIEW MODE IN EDITOR (Not the main print preview, but the collapsed view in QuestionItem)
-             // However, QuestionItem handles the main display. CalculationParts is mostly for Edit Mode.
-             // We keep basic display here just in case.
             <div className="flex w-full justify-between items-start">
               <div className="flex flex-col w-full">
                 <div className="flex">
                    {sub.label && <div className="mr-2 font-bold text-sm">{sub.label}</div>}
                    <LatexRenderer text={sub.text} className="text-sm" />
                 </div>
-                {/* Minimal preview of media in collapsed editor state */}
                 {sub.imageUrl && <div className="text-[9px] text-blue-500 font-bold ml-6 mt-1">[Has Figure: {sub.figureLabel}]</div>}
                 {sub.tableData && <div className="text-[9px] text-blue-500 font-bold ml-6 mt-1">[Has Table: {sub.tableData.label}]</div>}
               </div>
