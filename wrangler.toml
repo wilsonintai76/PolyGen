@@ -1,0 +1,16 @@
+name = "polygen-api"
+compatibility_date = "2024-03-20"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "polygen-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # Replace with your actual D1 database ID
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "polygen-storage" # Replace with your actual R2 bucket name
+
+[vars]
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
+AUTH_REDIRECT_URI = "http://localhost:3000/api/auth/callback" # Update as needed for production
